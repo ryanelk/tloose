@@ -4,7 +4,10 @@ import TimelineTab from "./components/Timeline.jsx";
 import ListTab from "./components/ListTab.jsx";
 import BudgetTab from "./components/Budget.jsx";
 import { ThemeSlider, SettingsMenu } from "./components/Settings.jsx";
-import { STORAGE_KEY, FONTS, TIMEZONES, DEFAULT_DATA, selectStyle } from "./data/defaults.js";
+import GistSetup from "./components/GistSetup.jsx";
+import { FONTS, TIMEZONES, DEFAULT_DATA, selectStyle } from "./data/defaults.js";
+import { loadTripsDb, saveTripsDb, createNewTrip } from "./data/tripsDb.js";
+import { getCredentials, saveCredentials, clearCredentials, loadFromGist, saveToGist, createGist } from "./data/gistStorage.js";
 import { syncTimelineDays } from "./utils/helpers.js";
 
 const TABS = [
@@ -29,105 +32,223 @@ function useTheme(pref) {
   return resolved;
 }
 
-// ─── Storage ───
-async function loadData() {
-  try {
-    const val = localStorage.getItem(STORAGE_KEY);
-    return val ? JSON.parse(val) : null;
-  } catch {
-    return null;
+function migrateTrip(s) {
+  if (!s) return null;
+  if (!s.font && s.fontId) { s.font = s.fontId; delete s.fontId; }
+  if (!s.font) s.font = "literata";
+  if (!s.timezone) s.timezone = "PST";
+  if (!s.locations) s.locations = [];
+  if (!s.overview) s.overview = DEFAULT_DATA.overview;
+  if (!s.overview.transports) {
+    if (s.overview.flights) {
+      s.overview.transports = s.overview.flights.map(f => ({
+        id: f.id, type: "flight", route: f.route || "", date: f.date || "",
+        startTime: "", endTime: "", airline: f.airline || "", notes: f.notes || "",
+        budgeted: 0, actual: 0,
+      }));
+      delete s.overview.flights;
+    } else {
+      s.overview.transports = [];
+    }
   }
+  if (!s.overview.stays) s.overview.stays = [];
+  if (!s.overview.deadlines) s.overview.deadlines = [];
+  s.overview.stays = s.overview.stays.map(st => ({
+    ...st, locationId: st.locationId || "", startDate: st.startDate || "",
+    endDate: st.endDate || "", budgeted: st.budgeted ?? 0, actual: st.actual ?? 0,
+  }));
+  if (!s.timeline) s.timeline = [];
+  s.timeline = s.timeline.map(d => ({
+    ...d,
+    subtitle: d.subtitle || "",
+    locationIds: d.locationIds || [],
+    events: (d.events || []).map(e => ({ ...e, linkedItemId: e.linkedItemId || "" })),
+  }));
+  if (s.startDate && s.endDate) {
+    s.timeline = syncTimelineDays(s.timeline, s.startDate, s.endDate);
+  }
+  if (!s.food) s.food = DEFAULT_DATA.food;
+  if (!s.activities) s.activities = DEFAULT_DATA.activities;
+  const migrateItem = (item) => {
+    const migrated = { ...item };
+    if (migrated.reservationDay === undefined) { migrated.reservationDay = ""; migrated.reservationTime = ""; delete migrated.reservationDate; }
+    if (migrated.priceLevel === undefined) {
+      const p = (migrated.price || "").length;
+      migrated.priceLevel = p >= 1 && p <= 4 ? p : 1;
+      delete migrated.price;
+    }
+    if (!migrated.tags) migrated.tags = [];
+    return migrated;
+  };
+  s.food = s.food.map(migrateItem);
+  s.activities = s.activities.map(migrateItem);
+  if (!s.budget) s.budget = DEFAULT_DATA.budget;
+  if (s.budget.categories) {
+    s.budget.categories = s.budget.categories.filter(c => c.group !== "Transportation" && c.group !== "Stays");
+  }
+  return s;
 }
 
-export async function saveData(data) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {}
+function applyMigrations(raw) {
+  if (!raw?.trips) return null;
+  raw.trips = raw.trips.map(migrateTrip);
+  if (!raw.activeTripId || !raw.trips.find(t => t.id === raw.activeTripId)) {
+    raw.activeTripId = raw.trips[0].id;
+  }
+  return raw;
 }
 
 export default function TripPlanner() {
-  const [data, setData] = useState(null);
+  const [credentials, setCredentials] = useState(() => getCredentials());
+  const [db, setDb] = useState(null);
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "saving" | "saved" | "error"
   const saveTimer = useRef(null);
+  const credentialsRef = useRef(credentials);
 
+  useEffect(() => { credentialsRef.current = credentials; }, [credentials]);
+
+  // Initial load from gist on mount
   useEffect(() => {
-    loadData().then(s => {
-      if (s) {
-        if (!s.font && s.fontId) { s.font = s.fontId; delete s.fontId; }
-        if (!s.font) s.font = "literata";
-        if (!s.timezone) s.timezone = "PST";
-        if (!s.locations) s.locations = [];
-        if (!s.overview) s.overview = DEFAULT_DATA.overview;
-        if (!s.overview.transports) {
-          if (s.overview.flights) {
-            s.overview.transports = s.overview.flights.map(f => ({
-              id: f.id, type: "flight", route: f.route || "", date: f.date || "",
-              startTime: "", endTime: "", airline: f.airline || "", notes: f.notes || "",
-              budgeted: 0, actual: 0,
-            }));
-            delete s.overview.flights;
-          } else {
-            s.overview.transports = [];
-          }
+    const creds = getCredentials();
+    if (!creds) { setLoading(false); return; }
+    loadFromGist(creds.token, creds.gistId)
+      .then(raw => {
+        const migrated = applyMigrations(raw);
+        if (!migrated) throw new Error("Invalid data");
+        setDb(migrated);
+        saveTripsDb(migrated); // local cache
+      })
+      .catch(() => {
+        // fall back to local cache and show error
+        const cached = loadTripsDb();
+        if (cached?.trips?.length > 0) {
+          setDb(applyMigrations(cached) || cached);
+        } else {
+          const trip = migrateTrip(createNewTrip());
+          setDb({ trips: [trip], activeTripId: trip.id });
         }
-        if (!s.overview.stays) s.overview.stays = [];
-        if (!s.overview.deadlines) s.overview.deadlines = [];
-        s.overview.stays = s.overview.stays.map(st => ({
-          ...st, locationId: st.locationId || "", startDate: st.startDate || "",
-          endDate: st.endDate || "", budgeted: st.budgeted ?? 0, actual: st.actual ?? 0,
-        }));
-        if (!s.timeline) s.timeline = [];
-        // Migrate timeline days: add subtitle, locationIds, migrate events
-        s.timeline = s.timeline.map(d => ({
-          ...d,
-          subtitle: d.subtitle || "",
-          locationIds: d.locationIds || [],
-          events: (d.events || []).map(e => ({ ...e, linkedItemId: e.linkedItemId || "" })),
-        }));
-        // Auto-generate timeline days from date range if empty or dates changed
-        if (s.startDate && s.endDate) {
-          s.timeline = syncTimelineDays(s.timeline, s.startDate, s.endDate);
-        }
-        if (!s.food) s.food = DEFAULT_DATA.food;
-        if (!s.activities) s.activities = DEFAULT_DATA.activities;
-        // Migrate food/activities: reservationDate → reservationDay + reservationTime, add priceLevel/tags
-        const migrateItem = (item) => {
-          const migrated = { ...item };
-          if (migrated.reservationDay === undefined) { migrated.reservationDay = ""; migrated.reservationTime = ""; delete migrated.reservationDate; }
-          if (migrated.priceLevel === undefined) {
-            const p = (migrated.price || "").length;
-            migrated.priceLevel = p >= 1 && p <= 4 ? p : 1;
-            delete migrated.price;
-          }
-          if (!migrated.tags) migrated.tags = [];
-          return migrated;
-        };
-        s.food = s.food.map(migrateItem);
-        s.activities = s.activities.map(migrateItem);
-        if (!s.budget) s.budget = DEFAULT_DATA.budget;
-        if (s.budget.categories) {
-          s.budget.categories = s.budget.categories.filter(c => c.group !== "Transportation" && c.group !== "Stays");
-        }
-      }
-      setData(s || JSON.parse(JSON.stringify(DEFAULT_DATA)));
-      setLoading(false);
-    });
+        setSyncStatus("error");
+      })
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const doGistSave = useCallback(async (nextDb) => {
+    const creds = credentialsRef.current;
+    if (!creds) return;
+    setSyncStatus("saving");
+    try {
+      await saveToGist(creds.token, creds.gistId, nextDb);
+      setSyncStatus("saved");
+      setTimeout(() => setSyncStatus(s => s === "saved" ? "idle" : s), 2000);
+    } catch {
+      setSyncStatus("error");
+    }
   }, []);
 
   const setD = useCallback((updater) => {
-    setData(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
+    setDb(prev => {
+      const next = {
+        ...prev,
+        trips: prev.trips.map(t => {
+          if (t.id !== prev.activeTripId) return t;
+          const updated = typeof updater === "function" ? updater(t) : updater;
+          return { ...updated, id: t.id };
+        }),
+      };
+      saveTripsDb(next); // local cache
       clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => saveData(next), 500);
+      saveTimer.current = setTimeout(() => doGistSave(next), 1500);
       return next;
     });
+  }, [doGistSave]);
+
+  const switchTrip = useCallback((id) => {
+    setDb(prev => {
+      const next = { ...prev, activeTripId: id };
+      saveTripsDb(next);
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => doGistSave(next), 1500);
+      return next;
+    });
+    setTab("overview");
+  }, [doGistSave]);
+
+  const addTrip = useCallback(() => {
+    const trip = migrateTrip(createNewTrip());
+    setDb(prev => {
+      const next = { trips: [...prev.trips, trip], activeTripId: trip.id };
+      saveTripsDb(next);
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => doGistSave(next), 1500);
+      return next;
+    });
+    setTab("overview");
+  }, [doGistSave]);
+
+  const handleConnect = useCallback(({ token, gistId, db: initialDb }) => {
+    saveCredentials(token, gistId);
+    const newCreds = { token, gistId };
+    credentialsRef.current = newCreds;
+    setCredentials(newCreds);
+    if (initialDb) {
+      // new gist: data already created, skip fetch
+      const migrated = applyMigrations(initialDb) || initialDb;
+      setDb(migrated);
+      saveTripsDb(migrated);
+      setLoading(false);
+    } else {
+      // existing gist: fetch its data
+      setLoading(true);
+      loadFromGist(token, gistId)
+        .then(raw => {
+          const migrated = applyMigrations(raw);
+          if (!migrated) throw new Error("Invalid data");
+          setDb(migrated);
+          saveTripsDb(migrated);
+        })
+        .catch(() => {
+          const trip = migrateTrip(createNewTrip());
+          setDb({ trips: [trip], activeTripId: trip.id });
+          setSyncStatus("error");
+        })
+        .finally(() => setLoading(false));
+    }
   }, []);
 
+  const handleDisconnect = useCallback(() => {
+    clearCredentials();
+    setCredentials(null);
+    setDb(null);
+    setLoading(false);
+    setSyncStatus("idle");
+  }, []);
+
+  const data = db?.trips.find(t => t.id === db.activeTripId) ?? null;
   const theme = useTheme(data?.theme || "system");
   const font = FONTS.find(f => f.id === data?.font) || FONTS[3];
 
-  if (loading || !data) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "system-ui", color: "#999" }}>Loading…</div>;
+  // ─── Screens ───
+  if (!credentials) {
+    return (
+      <GistSetup
+        onConnect={handleConnect}
+        getInitialDb={() => {
+          const trip = migrateTrip(createNewTrip());
+          return { trips: [trip], activeTripId: trip.id };
+        }}
+      />
+    );
+  }
+
+  if (loading || !db || !data) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "system-ui", color: "#999" }}>
+        Loading…
+      </div>
+    );
+  }
 
   const vars = theme === "dark" ? {
     "--bg": "#0e0e12", "--fg": "#d8d8dc", "--muted": "#606068", "--card-bg": "#16161c", "--border": "#232328", "--border-subtle": "#1c1c22",
@@ -147,13 +268,41 @@ export default function TripPlanner() {
     <div style={{ ...vars, background: "var(--bg)", color: "var(--fg)", minHeight: "100vh", fontFamily: font.stack }}>
       <link href={font.href} rel="stylesheet" />
       <div style={{ padding: "16px clamp(12px, 4vw, 28px) 0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 1.5, textTransform: "uppercase" }}>✈ Trip Planner</span>
+        {/* Left: branding + trip selector */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 1.5, textTransform: "uppercase" }}>✈ Trip Planner</span>
+          <div style={{ width: 1, height: 14, background: "var(--border)" }} />
+          <select
+            value={db.activeTripId}
+            onChange={e => switchTrip(e.target.value)}
+            style={{ ...selectStyle, fontSize: 12, maxWidth: 200 }}
+          >
+            {db.trips.map(t => (
+              <option key={t.id} value={t.id}>{t.tripName || "Untitled Trip"}</option>
+            ))}
+          </select>
+          <button
+            onClick={addTrip}
+            style={{
+              ...selectStyle, padding: "3px 10px", fontSize: 12, fontWeight: 600,
+              color: "var(--accent)", borderColor: "var(--accent)", background: "var(--accent-dim)", cursor: "pointer",
+            }}
+          >+ New Trip</button>
+        </div>
+        {/* Right: sync status + controls */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {syncStatus === "saving" && <span style={{ fontSize: 11, color: "var(--muted)" }}>Syncing…</span>}
+          {syncStatus === "saved" && <span style={{ fontSize: 11, color: "var(--green-text)" }}>Saved ✓</span>}
+          {syncStatus === "error" && (
+            <button onClick={() => doGistSave(db)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--red-text)", fontFamily: "inherit" }}>
+              Sync error — retry
+            </button>
+          )}
           <select value={data.timezone} onChange={e => setD(d => ({ ...d, timezone: e.target.value }))} style={{ ...selectStyle, fontSize: 11 }}>
             {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
           </select>
           <ThemeSlider value={data.theme} onChange={v => setD(d => ({ ...d, theme: v }))} />
-          <SettingsMenu data={data} setData={setD} saveData={saveData} />
+          <SettingsMenu data={data} setData={setD} onDisconnect={handleDisconnect} />
         </div>
       </div>
       <div style={{ display: "flex", gap: "clamp(16px, 5vw, 28px)", padding: "24px clamp(12px, 4vw, 28px) 0", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>

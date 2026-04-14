@@ -1,10 +1,13 @@
-import { Editable, DeleteBtn, AddBtn, Badge, PillSelect, MultiLocationSelect, ItemSearchSelect, ReorderBtns } from "./shared.jsx";
+import { useRef, useState } from "react";
+import { Editable, DeleteBtn, AddBtn, Badge, PillSelect, MultiLocationSelect, ItemSearchSelect } from "./shared.jsx";
 import { getDerivedEvents, uid } from "../utils/helpers.js";
 import { EVENT_TYPES, EVENT_TYPE_OPTIONS, SOURCE_ICONS, SOURCE_COLORS } from "../data/defaults.js";
 
 export default function TimelineTab({ data, setData }) {
   const { timeline, locations, food, activities } = data;
   const set = (tl) => setData(d => ({ ...d, timeline: tl }));
+  const dragRef = useRef(null); // { dayId, fromIdx }
+  const [dragOver, setDragOver] = useState(null); // { dayId, idx }
 
   const moveEvent = (dayId, fromIdx, toIdx) => {
     if (toIdx < 0) return;
@@ -50,11 +53,30 @@ export default function TimelineTab({ data, setData }) {
             <div style={{ height: 1, background: "var(--border-subtle)", margin: "3px 0" }} />
           )}
 
-          {/* Freeform events (reorderable, with item search, no time field) */}
+          {/* Freeform events (reorderable via drag, with item search, no time field) */}
           {day.events.map((ev, idx) => {
             const et = EVENT_TYPES[ev.type] || EVENT_TYPES.potential;
-            return <div key={ev.id} style={{ display: "flex", gap: 6, alignItems: "center", padding: "2px 0", flexWrap: "wrap" }}>
-              <ReorderBtns index={idx} total={day.events.length} onMove={(from, to) => moveEvent(day.id, from, to)} />
+            const isTarget = dragOver?.dayId === day.id && dragOver?.idx === idx;
+            return <div
+              key={ev.id}
+              draggable
+              onDragStart={() => { dragRef.current = { dayId: day.id, fromIdx: idx }; }}
+              onDragOver={e => { e.preventDefault(); setDragOver({ dayId: day.id, idx }); }}
+              onDragLeave={() => setDragOver(null)}
+              onDrop={e => {
+                e.preventDefault();
+                if (dragRef.current?.dayId === day.id) moveEvent(day.id, dragRef.current.fromIdx, idx);
+                dragRef.current = null;
+                setDragOver(null);
+              }}
+              onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
+              style={{
+                display: "flex", gap: 6, alignItems: "center", padding: "2px 0", flexWrap: "wrap",
+                borderTop: isTarget ? "2px solid var(--accent)" : "2px solid transparent",
+                borderRadius: 4, cursor: "default",
+              }}
+            >
+              <span style={{ cursor: "grab", color: "var(--muted)", fontSize: 13, flexShrink: 0, padding: "0 1px", lineHeight: 1, opacity: 0.5, userSelect: "none" }}>⠿</span>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: et.text, flexShrink: 0 }} />
               <Editable value={ev.text} onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.map(e => e.id === ev.id ? { ...e, text: v } : e) } : d))} placeholder="Event name" style={{ minWidth: 120, flex: "1 1 140px", fontSize: 13 }} />
               <div style={{ flex: "1 1 200px", minWidth: 150 }}>

@@ -30,7 +30,7 @@ export function Editable({ value, onChange, placeholder, style, type = "text" })
 }
 
 export function DeleteBtn({ onClick }) {
-  return <button onClick={onClick} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: "2px 4px", fontSize: 14, lineHeight: 1, opacity: 0.3, transition: "opacity 0.1s" }} onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.3}>×</button>;
+  return <button onClick={onClick} style={{ background: "none", border: "none", color: "var(--red-text)", cursor: "pointer", padding: "2px 4px", fontSize: 14, lineHeight: 1, opacity: 0.45, transition: "opacity 0.1s" }} onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.45}>×</button>;
 }
 
 export function AddBtn({ onClick, label }) {

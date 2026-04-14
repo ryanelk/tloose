@@ -1,0 +1,62 @@
+const GIST_FILENAME = "trip-planner-data.json";
+export const CREDENTIALS_KEY = "trip-planner-gist-credentials";
+
+export function getCredentials() {
+  try {
+    const raw = localStorage.getItem(CREDENTIALS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export function saveCredentials(token, gistId) {
+  localStorage.setItem(CREDENTIALS_KEY, JSON.stringify({ token, gistId }));
+}
+
+export function clearCredentials() {
+  localStorage.removeItem(CREDENTIALS_KEY);
+}
+
+export async function loadFromGist(token, gistId) {
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+  });
+  if (!res.ok) throw new Error(`GitHub API error ${res.status} — check your token and gist ID`);
+  const gist = await res.json();
+  const content = gist.files?.[GIST_FILENAME]?.content;
+  if (!content) throw new Error(`File "${GIST_FILENAME}" not found in gist`);
+  return JSON.parse(content);
+}
+
+export async function saveToGist(token, gistId, db) {
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      files: { [GIST_FILENAME]: { content: JSON.stringify(db, null, 2) } },
+    }),
+  });
+  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+}
+
+export async function createGist(token, db) {
+  const res = await fetch("https://api.github.com/gists", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      description: "Trip Planner Data",
+      public: false,
+      files: { [GIST_FILENAME]: { content: JSON.stringify(db, null, 2) } },
+    }),
+  });
+  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+  const gist = await res.json();
+  return gist.id;
+}
