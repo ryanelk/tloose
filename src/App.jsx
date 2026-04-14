@@ -178,7 +178,7 @@ export default function TripPlanner() {
       saveTripsDb(next); // local cache
       setPending();
       clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => doGistSave(next), 1500);
+      saveTimer.current = setTimeout(() => doGistSave(next), 5 * 60 * 1000);
       return next;
     });
   }, [doGistSave]);
@@ -188,7 +188,7 @@ export default function TripPlanner() {
       const next = { ...prev, activeTripId: id };
       saveTripsDb(next);
       clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => doGistSave(next), 1500);
+      saveTimer.current = setTimeout(() => doGistSave(next), 5 * 60 * 1000);
       return next;
     });
     setTab("overview");
@@ -200,7 +200,7 @@ export default function TripPlanner() {
       const next = { trips: [...prev.trips, trip], activeTripId: trip.id };
       saveTripsDb(next);
       clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => doGistSave(next), 1500);
+      saveTimer.current = setTimeout(() => doGistSave(next), 5 * 60 * 1000);
       return next;
     });
     setTab("overview");
