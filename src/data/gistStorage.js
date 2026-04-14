@@ -1,5 +1,10 @@
 const GIST_FILENAME = "trip-planner-data.json";
 export const CREDENTIALS_KEY = "trip-planner-gist-credentials";
+const PENDING_KEY = "trip-planner-pending-sync";
+
+export const setPending = () => localStorage.setItem(PENDING_KEY, "1");
+export const clearPending = () => localStorage.removeItem(PENDING_KEY);
+export const hasPending = () => !!localStorage.getItem(PENDING_KEY);
 
 export function getCredentials() {
   try {

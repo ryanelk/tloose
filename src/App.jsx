@@ -7,7 +7,7 @@ import { ThemeSlider, SettingsMenu } from "./components/Settings.jsx";
 import GistSetup from "./components/GistSetup.jsx";
 import { FONTS, TIMEZONES, DEFAULT_DATA, selectStyle } from "./data/defaults.js";
 import { loadTripsDb, saveTripsDb, createNewTrip } from "./data/tripsDb.js";
-import { getCredentials, saveCredentials, clearCredentials, loadFromGist, saveToGist, createGist } from "./data/gistStorage.js";
+import { getCredentials, saveCredentials, clearCredentials, loadFromGist, saveToGist, createGist, setPending, clearPending, hasPending } from "./data/gistStorage.js";
 import { syncTimelineDays } from "./utils/helpers.js";
 
 const TABS = [
@@ -104,6 +104,8 @@ export default function TripPlanner() {
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "saving" | "saved" | "error"
+  const [syncError, setSyncError] = useState("");
+  const [conflictData, setConflictData] = useState(null); // { gist, local } when unsynced changes detected
   const saveTimer = useRef(null);
   const credentialsRef = useRef(credentials);
 
@@ -116,12 +118,23 @@ export default function TripPlanner() {
     loadFromGist(creds.token, creds.gistId)
       .then(raw => {
         const migrated = applyMigrations(raw);
-        if (!migrated) throw new Error("Invalid data");
+        if (!migrated) throw new Error("Invalid data format in gist");
+        // If there are unsynced local changes, let the user decide which version to keep
+        if (hasPending()) {
+          const cached = loadTripsDb();
+          const local = cached?.trips?.length > 0 ? (applyMigrations(cached) || cached) : null;
+          if (local) {
+            setConflictData({ gist: migrated, local });
+            return;
+          }
+        }
+        clearPending();
         setDb(migrated);
-        saveTripsDb(migrated); // local cache
+        saveTripsDb(migrated);
       })
-      .catch(() => {
-        // fall back to local cache and show error
+      .catch(err => {
+        console.error("[Trip Planner] Failed to load from gist:", err.message);
+        // fall back to local cache
         const cached = loadTripsDb();
         if (cached?.trips?.length > 0) {
           setDb(applyMigrations(cached) || cached);
@@ -130,6 +143,7 @@ export default function TripPlanner() {
           setDb({ trips: [trip], activeTripId: trip.id });
         }
         setSyncStatus("error");
+        setSyncError(err.message);
       })
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -140,10 +154,14 @@ export default function TripPlanner() {
     setSyncStatus("saving");
     try {
       await saveToGist(creds.token, creds.gistId, nextDb);
+      clearPending();
       setSyncStatus("saved");
+      setSyncError("");
       setTimeout(() => setSyncStatus(s => s === "saved" ? "idle" : s), 2000);
-    } catch {
+    } catch (err) {
+      console.error("[Trip Planner] Failed to save to gist:", err.message);
       setSyncStatus("error");
+      setSyncError(err.message);
     }
   }, []);
 
@@ -158,6 +176,7 @@ export default function TripPlanner() {
         }),
       };
       saveTripsDb(next); // local cache
+      setPending();
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => doGistSave(next), 1500);
       return next;
@@ -242,10 +261,47 @@ export default function TripPlanner() {
     );
   }
 
-  if (loading || !db || !data) {
+  if (loading || (!conflictData && !db)) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "system-ui", color: "#999" }}>
         Loading…
+      </div>
+    );
+  }
+
+  if (conflictData) {
+    const resolve = (choice) => {
+      const chosen = choice === "local" ? conflictData.local : conflictData.gist;
+      clearPending();
+      setDb(chosen);
+      saveTripsDb(chosen);
+      if (choice === "local") {
+        // push local version to gist
+        clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => doGistSave(chosen), 500);
+      }
+      setConflictData(null);
+    };
+    const btnBase = { border: "1px solid #e8e6e0", borderRadius: 8, padding: "11px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "system-ui", transition: "opacity 0.15s" };
+    return (
+      <div style={{ minHeight: "100vh", background: "#faf9f6", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui", padding: 20 }}>
+        <div style={{ background: "#fff", border: "1px solid #e8e6e0", borderRadius: 16, padding: "36px 40px", maxWidth: 420, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#999", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>✈ Trip Planner</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 10px", letterSpacing: -0.4, color: "#1a1a1a" }}>Unsynced local changes</h2>
+          <p style={{ fontSize: 14, color: "#666", margin: "0 0 24px", lineHeight: 1.55 }}>
+            Your last session had changes that didn't sync to GitHub. Choose which version to keep — the other will be discarded.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={() => resolve("local")} style={{ ...btnBase, background: "#4a6ee0", color: "#fff", borderColor: "#4a6ee0" }}>
+              Keep local version
+              <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, marginTop: 2 }}>{conflictData.local.trips.length} trip{conflictData.local.trips.length !== 1 ? "s" : ""} · saved on this device</div>
+            </button>
+            <button onClick={() => resolve("gist")} style={{ ...btnBase, background: "#fff", color: "#1a1a1a" }}>
+              Load from GitHub Gist
+              <div style={{ fontSize: 11, fontWeight: 400, color: "#999", marginTop: 2 }}>{conflictData.gist.trips.length} trip{conflictData.gist.trips.length !== 1 ? "s" : ""} · last synced version</div>
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -294,7 +350,7 @@ export default function TripPlanner() {
           {syncStatus === "saving" && <span style={{ fontSize: 11, color: "var(--muted)" }}>Syncing…</span>}
           {syncStatus === "saved" && <span style={{ fontSize: 11, color: "var(--green-text)" }}>Saved ✓</span>}
           {syncStatus === "error" && (
-            <button onClick={() => doGistSave(db)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--red-text)", fontFamily: "inherit" }}>
+            <button onClick={() => doGistSave(db)} title={syncError || "Unknown error"} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--red-text)", fontFamily: "inherit" }}>
               Sync error — retry
             </button>
           )}
