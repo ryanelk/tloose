@@ -21,11 +21,20 @@ export function clearCredentials() {
   localStorage.removeItem(CREDENTIALS_KEY);
 }
 
+async function githubError(res) {
+  try {
+    const body = await res.json();
+    return new Error(`GitHub ${res.status}: ${body.message || JSON.stringify(body)}`);
+  } catch {
+    return new Error(`GitHub API error ${res.status}`);
+  }
+}
+
 export async function loadFromGist(token, gistId) {
   const res = await fetch(`https://api.github.com/gists/${gistId}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
   });
-  if (!res.ok) throw new Error(`GitHub API error ${res.status} — check your token and gist ID`);
+  if (!res.ok) throw await githubError(res);
   const gist = await res.json();
   const content = gist.files?.[GIST_FILENAME]?.content;
   if (!content) throw new Error(`File "${GIST_FILENAME}" not found in gist`);
@@ -44,7 +53,7 @@ export async function saveToGist(token, gistId, db) {
       files: { [GIST_FILENAME]: { content: JSON.stringify(db, null, 2) } },
     }),
   });
-  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+  if (!res.ok) throw await githubError(res);
 }
 
 export async function createGist(token, db) {
