@@ -206,6 +206,34 @@ export default function TripPlanner() {
     setTab("overview");
   }, [doGistSave]);
 
+  const cloneTrip = useCallback(() => {
+    setDb(prev => {
+      const src = prev.trips.find(t => t.id === prev.activeTripId);
+      if (!src) return prev;
+      const clone = { ...JSON.parse(JSON.stringify(src)), id: `trip_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, tripName: `Copy of ${src.tripName || "Untitled Trip"}` };
+      const next = { trips: [...prev.trips, clone], activeTripId: clone.id };
+      saveTripsDb(next);
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => doGistSave(next), 5 * 60 * 1000);
+      return next;
+    });
+    setTab("overview");
+  }, [doGistSave]);
+
+  const deleteTrip = useCallback(() => {
+    setDb(prev => {
+      if (prev.trips.length === 1) { alert("You can't delete your only trip."); return prev; }
+      if (!confirm(`Delete "${prev.trips.find(t => t.id === prev.activeTripId)?.tripName || "this trip"}"? This cannot be undone.`)) return prev;
+      const trips = prev.trips.filter(t => t.id !== prev.activeTripId);
+      const next = { trips, activeTripId: trips[0].id };
+      saveTripsDb(next);
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => doGistSave(next), 5 * 60 * 1000);
+      return next;
+    });
+    setTab("overview");
+  }, [doGistSave]);
+
   const handleConnect = useCallback(({ token, gistId, db: initialDb }) => {
     saveCredentials(token, gistId);
     const newCreds = { token, gistId };
@@ -337,7 +365,7 @@ export default function TripPlanner() {
       <div style={{ padding: "16px clamp(12px, 4vw, 28px) 0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         {/* Left: branding + trip selector */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 1.5, textTransform: "uppercase" }}>✈ Trip Planner</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 1.5, textTransform: "uppercase" }}>✈ tloose</span>
           <div style={{ width: 1, height: 14, background: "var(--border)" }} />
           <select
             value={db.activeTripId}
@@ -348,13 +376,9 @@ export default function TripPlanner() {
               <option key={t.id} value={t.id}>{t.tripName || "Untitled Trip"}</option>
             ))}
           </select>
-          <button
-            onClick={addTrip}
-            style={{
-              ...selectStyle, padding: "3px 10px", fontSize: 12, fontWeight: 600,
-              color: "var(--accent)", borderColor: "var(--accent)", background: "var(--accent-dim)", cursor: "pointer",
-            }}
-          >+ New Trip</button>
+          <button onClick={addTrip} style={{ ...selectStyle, padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "var(--accent)", borderColor: "var(--accent)", background: "var(--accent-dim)", cursor: "pointer" }}>+ New</button>
+          <button onClick={cloneTrip} style={{ ...selectStyle, padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "var(--muted)", cursor: "pointer" }} title="Clone current trip">⧉ Clone</button>
+          <button onClick={deleteTrip} style={{ ...selectStyle, padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "var(--red-text)", borderColor: "var(--red-text)", background: "var(--red-bg)", cursor: "pointer" }} title="Delete current trip">✕ Delete</button>
         </div>
         {/* Right: sync status + controls */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

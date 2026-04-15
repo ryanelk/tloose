@@ -67,18 +67,26 @@ export function PriceSlider({ value, onChange }) {
   </div>;
 }
 
-const TAG_DEFS = [
-  { key: "food",         emoji: "🍽", label: "Food",    activeBg: "var(--amber-bg)",  activeColor: "var(--amber-text)" },
-  { key: "drinks",       emoji: "🍹", label: "Drinks",  activeBg: "var(--green-bg)",  activeColor: "var(--green-text)" },
-  { key: "bib-gourmand", emoji: "😋", label: "Bib",     activeBg: "var(--red-bg)",    activeColor: "var(--red-text)"   },
-  { key: "michelin",     emoji: "⭐", label: "Star",    activeBg: "var(--amber-bg)",  activeColor: "var(--amber-text)" },
+const FOOD_TAGS = [
+  { key: "food",         emoji: "🍽", label: "Food",       activeBg: "var(--amber-bg)", activeColor: "var(--amber-text)" },
+  { key: "drinks",       emoji: "🍹", label: "Drinks",     activeBg: "var(--green-bg)", activeColor: "var(--green-text)" },
+  { key: "bib-gourmand", emoji: "😋", label: "Bib",        activeBg: "var(--red-bg)",   activeColor: "var(--red-text)"   },
+  { key: "michelin",     emoji: "⭐", label: "Star",       activeBg: "var(--amber-bg)", activeColor: "var(--amber-text)" },
 ];
 
-export function TagToggle({ tags, onChange }) {
+const ACTIVITY_TAGS = [
+  { key: "shop",       emoji: "🛍",  label: "Shop",       activeBg: "var(--accent-dim)",  activeColor: "var(--accent)"      },
+  { key: "attraction", emoji: "🏛",  label: "Attraction", activeBg: "var(--amber-bg)",    activeColor: "var(--amber-text)"  },
+  { key: "nature",     emoji: "🌿",  label: "Nature",     activeBg: "var(--green-bg)",    activeColor: "var(--green-text)"  },
+  { key: "monument",   emoji: "🗿",  label: "Monument",   activeBg: "var(--slate-bg)",    activeColor: "var(--slate-text)"  },
+];
+
+export function TagToggle({ tags, onChange, type = "food" }) {
+  const defs = type === "activity" ? ACTIVITY_TAGS : FOOD_TAGS;
   const t = tags || [];
   const toggle = (key) => t.includes(key) ? onChange(t.filter(x => x !== key)) : onChange([...t, key]);
-  return <div style={{ display: "inline-flex", gap: 3 }}>
-    {TAG_DEFS.map(({ key, emoji, label, activeBg, activeColor }) => {
+  return <div style={{ display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
+    {defs.map(({ key, emoji, label, activeBg, activeColor }) => {
       const on = t.includes(key);
       return <button key={key} onClick={() => toggle(key)} style={{
         background: on ? activeBg : "transparent",

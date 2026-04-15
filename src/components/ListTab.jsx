@@ -35,7 +35,7 @@ export default function ListTab({ items, setItems, type, locations }) {
                 <Editable value={item.name} onChange={v => updateItem(item.id, "name", v)} placeholder={`${type} name`} style={{ fontWeight: 700, fontSize: 16, flex: 1, minWidth: 150 }} />
                 <a href={`https://www.google.com/maps/search/${encodeURIComponent(item.name + (locKey !== "_unassigned" ? " " + getLocationName(locations, locKey) : ""))}`} target="_blank" rel="noopener" style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", fontWeight: 500, flexShrink: 0 }}>↗ Map</a>
                 {item.hasReservation && <Badge bg="var(--green-bg)" text="var(--green-text)" label="Reserved" />}
-                {isFood && <TagToggle tags={item.tags} onChange={v => updateItem(item.id, "tags", v)} />}
+                <TagToggle tags={item.tags} onChange={v => updateItem(item.id, "tags", v)} type={isFood ? "food" : "activity"} />
                 <PriceSlider value={item.priceLevel} onChange={v => updateItem(item.id, "priceLevel", v)} />
                 <PillSelect value={item.priority} options={PRIORITY_OPTIONS} onChange={v => updateItem(item.id, "priority", v)} size="xs" />
                 <DeleteBtn onClick={() => removeItem(item.id)} />
