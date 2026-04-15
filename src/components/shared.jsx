@@ -67,23 +67,28 @@ export function PriceSlider({ value, onChange }) {
   </div>;
 }
 
+const TAG_DEFS = [
+  { key: "food",         emoji: "🍽", label: "Food",    activeBg: "var(--amber-bg)",  activeColor: "var(--amber-text)" },
+  { key: "drinks",       emoji: "🍹", label: "Drinks",  activeBg: "var(--green-bg)",  activeColor: "var(--green-text)" },
+  { key: "bib-gourmand", emoji: "😋", label: "Bib",     activeBg: "var(--red-bg)",    activeColor: "var(--red-text)"   },
+  { key: "michelin",     emoji: "⭐", label: "Star",    activeBg: "var(--amber-bg)",  activeColor: "var(--amber-text)" },
+];
+
 export function TagToggle({ tags, onChange }) {
   const t = tags || [];
-  const toggle = (tag) => {
-    if (t.includes(tag)) onChange(t.filter(x => x !== tag));
-    else onChange([...t, tag]);
-  };
+  const toggle = (key) => t.includes(key) ? onChange(t.filter(x => x !== key)) : onChange([...t, key]);
   return <div style={{ display: "inline-flex", gap: 3 }}>
-    <button onClick={() => toggle("food")} style={{
-      background: t.includes("food") ? "var(--amber-bg)" : "var(--pill-track)",
-      color: t.includes("food") ? "var(--amber-text)" : "var(--muted)",
-      border: "none", borderRadius: 10, padding: "2px 6px", fontSize: 12, cursor: "pointer", transition: "all 0.1s",
-    }} title="Food">🍽</button>
-    <button onClick={() => toggle("drinks")} style={{
-      background: t.includes("drinks") ? "var(--green-bg)" : "var(--pill-track)",
-      color: t.includes("drinks") ? "var(--green-text)" : "var(--muted)",
-      border: "none", borderRadius: 10, padding: "2px 6px", fontSize: 12, cursor: "pointer", transition: "all 0.1s",
-    }} title="Drinks">🍹</button>
+    {TAG_DEFS.map(({ key, emoji, label, activeBg, activeColor }) => {
+      const on = t.includes(key);
+      return <button key={key} onClick={() => toggle(key)} style={{
+        background: on ? activeBg : "transparent",
+        color: on ? activeColor : "var(--muted)",
+        border: on ? `1px solid ${activeColor}` : "1px solid var(--border)",
+        borderRadius: 10, padding: "2px 7px", fontSize: 11, cursor: "pointer",
+        transition: "all 0.1s", opacity: on ? 1 : 0.45, fontFamily: "inherit",
+        display: "inline-flex", alignItems: "center", gap: 3,
+      }}>{emoji} {label}</button>;
+    })}
   </div>;
 }
 

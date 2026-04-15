@@ -25,7 +25,7 @@ export function ThemeSlider({ value, onChange }) {
   );
 }
 
-export function SettingsMenu({ data, setData, onDisconnect }) {
+export function SettingsMenu({ data, setData, onDisconnect, onDownload }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -64,6 +64,10 @@ export function SettingsMenu({ data, setData, onDisconnect }) {
               width: "100%", padding: "8px 0", background: "none", border: "1px solid var(--border)",
               borderRadius: 6, color: "var(--red-text)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}>Reset to Template</button>
+            <button onClick={() => { onDownload(); setOpen(false); }} style={{
+              width: "100%", padding: "8px 0", background: "none", border: "1px solid var(--border)",
+              borderRadius: 6, color: "var(--fg)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>Download Backup</button>
             <button onClick={() => {
               if (confirm("Disconnect from GitHub Gist? Your local data won't be deleted.")) { onDisconnect(); }
               setOpen(false);

@@ -10,7 +10,7 @@ export default function ListTab({ items, setItems, type, locations }) {
     if (a === "_unassigned") return 1; if (b === "_unassigned") return -1;
     return getLocationName(locations, a).localeCompare(getLocationName(locations, b));
   });
-  const addItem = () => setItems([...items, { id: uid(), name: "", locationId: "", priceLevel: 1, tags: isFood ? ["food"] : [], vibe: "", priority: "if-time", hasReservation: false, reservationDay: "", reservationTime: "", notes: "" }]);
+  const addItem = () => setItems([{ id: uid(), name: "", locationId: "", priceLevel: 1, tags: isFood ? ["food"] : [], vibe: "", priority: "if-time", hasReservation: false, reservationDay: "", reservationTime: "", notes: "" }, ...items]);
   const removeItem = (id) => setItems(items.filter(i => i.id !== id));
   const updateItem = (id, f, v) => setItems(items.map(i => i.id === id ? { ...i, [f]: v } : i));
 
@@ -24,6 +24,7 @@ export default function ListTab({ items, setItems, type, locations }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1.2 }}>{displayName}</span>
           <a href={`https://www.google.com/maps/search/${encodeURIComponent(displayName.replace(" → ", " "))}`} target="_blank" rel="noopener" style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", fontWeight: 500 }}>↗ Map</a>
+          <span style={{ fontSize: 11, color: "var(--muted)" }}>{grouped[locKey].length} {type === "Restaurant" ? "restaurants" : "activities"}</span>
           <div style={{ flex: 1, height: 1, background: "var(--border-subtle)" }} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -32,6 +33,7 @@ export default function ListTab({ items, setItems, type, locations }) {
               {/* Row 1: Name, Reserved badge, Tags, Price, Priority, Delete */}
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
                 <Editable value={item.name} onChange={v => updateItem(item.id, "name", v)} placeholder={`${type} name`} style={{ fontWeight: 700, fontSize: 16, flex: 1, minWidth: 150 }} />
+                <a href={`https://www.google.com/maps/search/${encodeURIComponent(item.name + (locKey !== "_unassigned" ? " " + getLocationName(locations, locKey) : ""))}`} target="_blank" rel="noopener" style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", fontWeight: 500, flexShrink: 0 }}>↗ Map</a>
                 {item.hasReservation && <Badge bg="var(--green-bg)" text="var(--green-text)" label="Reserved" />}
                 {isFood && <TagToggle tags={item.tags} onChange={v => updateItem(item.id, "tags", v)} />}
                 <PriceSlider value={item.priceLevel} onChange={v => updateItem(item.id, "priceLevel", v)} />
@@ -42,7 +44,7 @@ export default function ListTab({ items, setItems, type, locations }) {
               <Editable value={item.vibe} onChange={v => updateItem(item.id, "vibe", v)} placeholder="Vibe / what to expect" style={{ fontSize: 13, fontStyle: "italic", color: "var(--muted)", marginBottom: 6 }} />
               {/* Row 3: Location, Reservation, Notes */}
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <LocationSelect value={item.locationId} locations={locations} onChange={v => updateItem(item.id, "locationId", v)} style={{ width: 160 }} />
+                <LocationSelect value={item.locationId} locations={locations} onChange={v => updateItem(item.id, "locationId", v)} style={{ width: 200 }} />
                 <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--muted)", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
                   <input type="checkbox" checked={item.hasReservation} onChange={() => updateItem(item.id, "hasReservation", !item.hasReservation)} style={{ accentColor: "var(--accent)" }} />
                   Reservation

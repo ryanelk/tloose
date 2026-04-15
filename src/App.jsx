@@ -236,6 +236,17 @@ export default function TripPlanner() {
     }
   }, []);
 
+  const handleDownload = useCallback(() => {
+    const json = JSON.stringify(db, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `trip-planner-backup-${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [db]);
+
   const handleDisconnect = useCallback(() => {
     clearCredentials();
     setCredentials(null);
@@ -349,16 +360,17 @@ export default function TripPlanner() {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {syncStatus === "saving" && <span style={{ fontSize: 11, color: "var(--muted)" }}>Syncing…</span>}
           {syncStatus === "saved" && <span style={{ fontSize: 11, color: "var(--green-text)" }}>Saved ✓</span>}
-          {syncStatus === "error" && (
-            <button onClick={() => doGistSave(db)} title={syncError || "Unknown error"} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--red-text)", fontFamily: "inherit" }}>
-              Sync error — retry
-            </button>
-          )}
+          {syncStatus === "error"
+            ? <button onClick={() => doGistSave(db)} title={syncError || "Unknown error"} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--red-text)", fontFamily: "inherit" }}>Sync error — retry</button>
+            : syncStatus !== "saving" && syncStatus !== "saved" && (
+              <button onClick={() => doGistSave(db)} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontSize: 11, color: "var(--muted)", fontFamily: "inherit" }}>↑ Sync</button>
+            )
+          }
           <select value={data.timezone} onChange={e => setD(d => ({ ...d, timezone: e.target.value }))} style={{ ...selectStyle, fontSize: 11 }}>
             {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
           </select>
           <ThemeSlider value={data.theme} onChange={v => setD(d => ({ ...d, theme: v }))} />
-          <SettingsMenu data={data} setData={setD} onDisconnect={handleDisconnect} />
+          <SettingsMenu data={data} setData={setD} onDisconnect={handleDisconnect} onDownload={handleDownload} />
         </div>
       </div>
       <div style={{ display: "flex", gap: "clamp(16px, 5vw, 28px)", padding: "24px clamp(12px, 4vw, 28px) 0", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
