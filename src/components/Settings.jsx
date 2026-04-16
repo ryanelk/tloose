@@ -25,7 +25,7 @@ export function ThemeSlider({ value, onChange }) {
   );
 }
 
-export function SettingsMenu({ data, setData, onDisconnect, onDownload }) {
+export function SettingsMenu({ data, setData, onDisconnect, onDownload, onClone, onDelete, guestMode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -57,6 +57,14 @@ export function SettingsMenu({ data, setData, onDisconnect, onDownload }) {
             ))}
           </div>
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            <button onClick={() => { onClone(); setOpen(false); }} style={{
+              width: "100%", padding: "8px 0", background: "none", border: "1px solid var(--border)",
+              borderRadius: 6, color: "var(--fg)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>⧉ Clone Trip</button>
+            <button onClick={() => { onDownload(); setOpen(false); }} style={{
+              width: "100%", padding: "8px 0", background: "none", border: "1px solid var(--border)",
+              borderRadius: 6, color: "var(--fg)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>Download Backup</button>
             <button onClick={() => {
               if (confirm("Reset all data to sample template?")) { setData(JSON.parse(JSON.stringify(DEFAULT_DATA))); }
               setOpen(false);
@@ -64,17 +72,18 @@ export function SettingsMenu({ data, setData, onDisconnect, onDownload }) {
               width: "100%", padding: "8px 0", background: "none", border: "1px solid var(--border)",
               borderRadius: 6, color: "var(--red-text)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}>Reset to Template</button>
-            <button onClick={() => { onDownload(); setOpen(false); }} style={{
+            <button onClick={() => { onDelete(); setOpen(false); }} style={{
               width: "100%", padding: "8px 0", background: "none", border: "1px solid var(--border)",
-              borderRadius: 6, color: "var(--fg)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            }}>Download Backup</button>
+              borderRadius: 6, color: "var(--red-text)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>✕ Delete Trip</button>
             <button onClick={() => {
-              if (confirm("Disconnect from GitHub Gist? Your local data won't be deleted.")) { onDisconnect(); }
+              const msg = guestMode ? "Return to the welcome screen? Your local data will be kept." : "Disconnect from GitHub Gist? Your local data won't be deleted.";
+              if (confirm(msg)) { onDisconnect(); }
               setOpen(false);
             }} style={{
               width: "100%", padding: "8px 0", background: "none", border: "1px solid var(--border)",
               borderRadius: 6, color: "var(--muted)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            }}>Disconnect Gist</button>
+            }}>{guestMode ? "Switch to GitHub Sync" : "Disconnect Gist"}</button>
           </div>
         </div>
       )}

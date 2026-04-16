@@ -1,6 +1,11 @@
 const GIST_FILENAME = "trip-planner-data.json";
 export const CREDENTIALS_KEY = "trip-planner-gist-credentials";
 const PENDING_KEY = "trip-planner-pending-sync";
+const GUEST_KEY = "trip-planner-guest-mode";
+
+export const setGuestMode = () => localStorage.setItem(GUEST_KEY, "1");
+export const clearGuestMode = () => localStorage.removeItem(GUEST_KEY);
+export const isGuestMode = () => !!localStorage.getItem(GUEST_KEY);
 
 export const setPending = () => localStorage.setItem(PENDING_KEY, "1");
 export const clearPending = () => localStorage.removeItem(PENDING_KEY);

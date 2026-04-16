@@ -7,7 +7,7 @@ import { ThemeSlider, SettingsMenu } from "./components/Settings.jsx";
 import GistSetup from "./components/GistSetup.jsx";
 import { FONTS, TIMEZONES, DEFAULT_DATA, selectStyle } from "./data/defaults.js";
 import { loadTripsDb, saveTripsDb, createNewTrip } from "./data/tripsDb.js";
-import { getCredentials, saveCredentials, clearCredentials, loadFromGist, saveToGist, createGist, setPending, clearPending, hasPending } from "./data/gistStorage.js";
+import { getCredentials, saveCredentials, clearCredentials, loadFromGist, saveToGist, createGist, setPending, clearPending, hasPending, isGuestMode, setGuestMode, clearGuestMode } from "./data/gistStorage.js";
 import { syncTimelineDays } from "./utils/helpers.js";
 
 const TABS = [
@@ -100,8 +100,10 @@ function applyMigrations(raw) {
 
 export default function TripPlanner() {
   const [credentials, setCredentials] = useState(() => getCredentials());
+  const [guestMode, setGuestModeState] = useState(() => isGuestMode());
   const [db, setDb] = useState(null);
   const [tab, setTab] = useState("overview");
+  const [splitPanel, setSplitPanel] = useState(null); // null | "overview" | "food" | "activities"
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "saving" | "saved" | "error"
   const [syncError, setSyncError] = useState("");
@@ -111,8 +113,20 @@ export default function TripPlanner() {
 
   useEffect(() => { credentialsRef.current = credentials; }, [credentials]);
 
-  // Initial load from gist on mount
+  // Initial load on mount
   useEffect(() => {
+    // Guest mode: load from localStorage only
+    if (isGuestMode()) {
+      const cached = loadTripsDb();
+      if (cached?.trips?.length > 0) {
+        setDb(applyMigrations(cached) || cached);
+      } else {
+        const trip = migrateTrip(createNewTrip());
+        setDb({ trips: [trip], activeTripId: trip.id });
+      }
+      setLoading(false);
+      return;
+    }
     const creds = getCredentials();
     if (!creds) { setLoading(false); return; }
     loadFromGist(creds.token, creds.gistId)
@@ -176,9 +190,11 @@ export default function TripPlanner() {
         }),
       };
       saveTripsDb(next); // local cache
-      setPending();
-      clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => doGistSave(next), 5 * 60 * 1000);
+      if (!isGuestMode()) {
+        setPending();
+        clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => doGistSave(next), 5 * 60 * 1000);
+      }
       return next;
     });
   }, [doGistSave]);
@@ -275,9 +291,24 @@ export default function TripPlanner() {
     URL.revokeObjectURL(url);
   }, [db]);
 
+  const handleGuest = useCallback(() => {
+    setGuestMode();
+    setGuestModeState(true);
+    const cached = loadTripsDb();
+    if (cached?.trips?.length > 0) {
+      setDb(applyMigrations(cached) || cached);
+    } else {
+      const trip = migrateTrip(createNewTrip());
+      setDb({ trips: [trip], activeTripId: trip.id });
+    }
+    setLoading(false);
+  }, []);
+
   const handleDisconnect = useCallback(() => {
     clearCredentials();
+    clearGuestMode();
     setCredentials(null);
+    setGuestModeState(false);
     setDb(null);
     setLoading(false);
     setSyncStatus("idle");
@@ -287,11 +318,16 @@ export default function TripPlanner() {
   const theme = useTheme(data?.theme || "system");
   const font = FONTS.find(f => f.id === data?.font) || FONTS[3];
 
+  useEffect(() => {
+    document.title = data?.tripName ? `${data.tripName} — tloose` : "tloose";
+  }, [data?.tripName]);
+
   // ─── Screens ───
-  if (!credentials) {
+  if (!credentials && !guestMode) {
     return (
       <GistSetup
         onConnect={handleConnect}
+        onGuest={handleGuest}
         getInitialDb={() => {
           const trip = migrateTrip(createNewTrip());
           return { trips: [trip], activeTripId: trip.id };
@@ -359,10 +395,19 @@ export default function TripPlanner() {
     "--pill-track": "#efede8", "--pill-active-bg": "#fff", "--pill-active-fg": "#1a1a1a",
   };
 
+  const isSplit = tab === "timeline" && splitPanel !== null;
+  const handleTabChange = (id) => {
+    setTab(id);
+    if (id !== "timeline") setSplitPanel(null);
+  };
+
+  const splitPanelLabel = splitPanel === "overview" ? "Overview" : splitPanel === "food" ? "Food" : splitPanel === "activities" ? "Activities" : "";
+
   return (
-    <div style={{ ...vars, background: "var(--bg)", color: "var(--fg)", minHeight: "100vh", fontFamily: font.stack }}>
+    <div style={{ ...vars, background: "var(--bg)", color: "var(--fg)", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: font.stack }}>
       <link href={font.href} rel="stylesheet" />
-      <div style={{ padding: "16px clamp(12px, 4vw, 28px) 0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+      {/* ─── Header ─── */}
+      <div style={{ padding: "16px clamp(12px, 4vw, 28px) 0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, flexShrink: 0 }}>
         {/* Left: branding + trip selector */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 1.5, textTransform: "uppercase" }}>✈ tloose</span>
@@ -377,29 +422,27 @@ export default function TripPlanner() {
             ))}
           </select>
           <button onClick={addTrip} style={{ ...selectStyle, padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "var(--accent)", borderColor: "var(--accent)", background: "var(--accent-dim)", cursor: "pointer" }}>+ New</button>
-          <button onClick={cloneTrip} style={{ ...selectStyle, padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "var(--muted)", cursor: "pointer" }} title="Clone current trip">⧉ Clone</button>
-          <button onClick={deleteTrip} style={{ ...selectStyle, padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "var(--red-text)", borderColor: "var(--red-text)", background: "var(--red-bg)", cursor: "pointer" }} title="Delete current trip">✕ Delete</button>
         </div>
         {/* Right: sync status + controls */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {syncStatus === "saving" && <span style={{ fontSize: 11, color: "var(--muted)" }}>Syncing…</span>}
-          {syncStatus === "saved" && <span style={{ fontSize: 11, color: "var(--green-text)" }}>Saved ✓</span>}
-          {syncStatus === "error"
-            ? <button onClick={() => doGistSave(db)} title={syncError || "Unknown error"} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--red-text)", fontFamily: "inherit" }}>Sync error — retry</button>
-            : syncStatus !== "saving" && syncStatus !== "saved" && (
-              <button onClick={() => doGistSave(db)} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontSize: 11, color: "var(--muted)", fontFamily: "inherit" }}>↑ Sync</button>
-            )
-          }
+          {!guestMode && (
+            syncStatus === "error"
+              ? <button onClick={() => doGistSave(db)} title={syncError || "Unknown error"} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--red-text)", fontFamily: "inherit" }}>Sync error — retry</button>
+              : syncStatus === "saving" ? <span style={{ fontSize: 11, color: "var(--muted)" }}>Syncing…</span>
+              : syncStatus === "saved" ? <span style={{ fontSize: 11, color: "var(--green-text)" }}>Saved ✓</span>
+              : <button onClick={() => doGistSave(db)} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontSize: 11, color: "var(--muted)", fontFamily: "inherit" }}>↑ Sync</button>
+          )}
           <select value={data.timezone} onChange={e => setD(d => ({ ...d, timezone: e.target.value }))} style={{ ...selectStyle, fontSize: 11 }}>
             {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
           </select>
           <ThemeSlider value={data.theme} onChange={v => setD(d => ({ ...d, theme: v }))} />
-          <SettingsMenu data={data} setData={setD} onDisconnect={handleDisconnect} onDownload={handleDownload} />
+          <SettingsMenu data={data} setData={setD} onDisconnect={handleDisconnect} onDownload={handleDownload} onClone={cloneTrip} onDelete={deleteTrip} guestMode={guestMode} />
         </div>
       </div>
-      <div style={{ display: "flex", gap: "clamp(16px, 5vw, 28px)", padding: "24px clamp(12px, 4vw, 28px) 0", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      {/* ─── Tabs ─── */}
+      <div style={{ display: "flex", gap: "clamp(16px, 5vw, 28px)", padding: "24px clamp(12px, 4vw, 28px) 0", overflowX: "auto", WebkitOverflowScrolling: "touch", flexShrink: 0 }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+          <button key={t.id} onClick={() => handleTabChange(t.id)} style={{
             padding: "4px 0 14px", background: "transparent", border: "none",
             borderBottom: tab === t.id ? "2px solid var(--accent)" : "2px solid transparent",
             color: tab === t.id ? "var(--fg)" : "var(--muted)",
@@ -408,14 +451,51 @@ export default function TripPlanner() {
           }}>{t.label}</button>
         ))}
       </div>
-      <div style={{ height: 1, background: "var(--border)", margin: "0 clamp(12px, 4vw, 28px)" }} />
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "clamp(20px, 5vw, 32px) clamp(12px, 4vw, 28px) 80px" }}>
-        {tab === "overview" && <OverviewTab data={data} setData={setD} tz={data.timezone} />}
-        {tab === "timeline" && <TimelineTab data={data} setData={setD} />}
-        {tab === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} />}
-        {tab === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} />}
-        {tab === "budget" && <BudgetTab data={data} setData={setD} />}
-      </div>
+      <div style={{ height: 1, background: "var(--border)", margin: "0 clamp(12px, 4vw, 28px)", flexShrink: 0 }} />
+
+      {/* ─── Content ─── */}
+      {isSplit ? (
+        <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+          {/* Left: Timeline */}
+          <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "clamp(20px, 5vw, 32px) clamp(12px, 3vw, 24px) 80px" }}>
+            <div style={{ maxWidth: 600, margin: "0 auto" }}>
+              <TimelineTab data={data} setData={setD} onOpenSplit={setSplitPanel} splitPanel={splitPanel} />
+            </div>
+          </div>
+          {/* Divider */}
+          <div style={{ width: 1, background: "var(--border)", flexShrink: 0 }} />
+          {/* Right: Split panel */}
+          <div style={{ width: "clamp(300px, 44%, 520px)", flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            {/* Panel header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px 10px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--fg)", letterSpacing: -0.2 }}>{splitPanelLabel}</span>
+              <button onClick={() => setSplitPanel(null)} style={{
+                background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--muted)",
+                padding: "2px 6px", borderRadius: 4, lineHeight: 1, fontFamily: "inherit",
+                transition: "color 0.1s",
+              }} title="Close panel" onMouseEnter={e => e.target.style.color = "var(--fg)"} onMouseLeave={e => e.target.style.color = "var(--muted)"}>×</button>
+            </div>
+            {/* Panel content */}
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "clamp(20px, 5vw, 28px) clamp(12px, 3vw, 24px) 80px" }}>
+              <div style={{ maxWidth: 480, margin: "0 auto" }}>
+                {splitPanel === "overview" && <OverviewTab data={data} setData={setD} tz={data.timezone} />}
+                {splitPanel === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} />}
+                {splitPanel === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} />}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+          <div style={{ maxWidth: 860, margin: "0 auto", padding: "clamp(20px, 5vw, 32px) clamp(12px, 4vw, 28px) 80px" }}>
+            {tab === "overview" && <OverviewTab data={data} setData={setD} tz={data.timezone} />}
+            {tab === "timeline" && <TimelineTab data={data} setData={setD} onOpenSplit={setSplitPanel} splitPanel={splitPanel} />}
+            {tab === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} />}
+            {tab === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} />}
+            {tab === "budget" && <BudgetTab data={data} setData={setD} />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

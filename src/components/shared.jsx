@@ -89,12 +89,13 @@ export function TagToggle({ tags, onChange, type = "food" }) {
     {defs.map(({ key, emoji, label, activeBg, activeColor }) => {
       const on = t.includes(key);
       return <button key={key} onClick={() => toggle(key)} style={{
-        background: on ? activeBg : "transparent",
+        background: on ? activeBg : "var(--pill-track)",
         color: on ? activeColor : "var(--muted)",
-        border: on ? `1px solid ${activeColor}` : "1px solid var(--border)",
+        border: on ? `1.5px solid ${activeColor}` : "1.5px solid transparent",
         borderRadius: 10, padding: "2px 7px", fontSize: 11, cursor: "pointer",
-        transition: "all 0.1s", opacity: on ? 1 : 0.45, fontFamily: "inherit",
+        transition: "all 0.1s", fontFamily: "inherit",
         display: "inline-flex", alignItems: "center", gap: 3,
+        fontWeight: on ? 600 : 400,
       }}>{emoji} {label}</button>;
     })}
   </div>;
@@ -119,7 +120,7 @@ export function MultiLocationSelect({ value, locations, onChange }) {
   </div>;
 }
 
-export function ItemSearchSelect({ value, food, activities, onChange }) {
+export function ItemSearchSelect({ value, food, activities, onChange, onInspect }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -139,7 +140,15 @@ export function ItemSearchSelect({ value, food, activities, onChange }) {
   if (linked) {
     return <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
       <span style={{ fontSize: 12 }}>{linked._type === "food" ? "🍽" : "📍"}</span>
-      <span style={{ fontSize: 13, fontWeight: 500 }}>{linked.name}</span>
+      {onInspect ? (
+        <button onClick={() => onInspect(linked.id)} style={{
+          background: "none", border: "none", padding: 0, cursor: "pointer",
+          fontSize: 13, fontWeight: 500, color: "var(--fg)", fontFamily: "inherit",
+          textAlign: "left",
+        }}>{linked.name}</button>
+      ) : (
+        <span style={{ fontSize: 13, fontWeight: 500 }}>{linked.name}</span>
+      )}
       <button onClick={() => onChange("")} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11, padding: "0 4px" }}>×</button>
     </div>;
   }
