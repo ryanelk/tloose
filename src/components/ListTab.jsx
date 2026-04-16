@@ -1,16 +1,34 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Editable, DeleteBtn, AddBtn, Badge, PillSelect, LocationSelect, PriceSlider, TagToggle } from "./shared.jsx";
 import { getLocationName, locationOptions, uid } from "../utils/helpers.js";
 import { PRIORITY_OPTIONS, selectStyle } from "../data/defaults.js";
 
+function FieldLabel({ children }) {
+  return <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{children}</div>;
+}
+
 function NewItemDialog({ isFood, locations, onConfirm, onCancel }) {
   const [name, setName] = useState("");
   const [locationId, setLocationId] = useState("");
+  const [priceLevel, setPriceLevel] = useState(1);
+  const [tags, setTags] = useState(isFood ? ["food"] : []);
+  const [priority, setPriority] = useState("if-time");
+  const [vibe, setVibe] = useState("");
+  const [notes, setNotes] = useState("");
+  const [hasReservation, setHasReservation] = useState(false);
+  const [reservationDay, setReservationDay] = useState("");
+  const [reservationTime, setReservationTime] = useState("");
+
+  const inputStyle = {
+    border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px",
+    fontSize: 13, fontFamily: "inherit", color: "var(--fg)", background: "var(--bg)",
+    outline: "none", transition: "border-color 0.15s", width: "100%", boxSizing: "border-box",
+  };
 
   const handleSubmit = (e) => {
     e?.preventDefault();
     if (!name.trim()) return;
-    onConfirm(name.trim(), locationId);
+    onConfirm({ name: name.trim(), locationId, priceLevel, tags, priority, vibe: vibe.trim(), notes: notes.trim(), hasReservation, reservationDay, reservationTime });
   };
 
   return (
@@ -18,26 +36,97 @@ function NewItemDialog({ isFood, locations, onConfirm, onCancel }) {
       onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
     >
-      <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 360, boxShadow: "0 16px 48px rgba(0,0,0,0.2)" }}>
-        <h3 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 700, letterSpacing: -0.3, color: "var(--fg)" }}>
+      <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 16px 48px rgba(0,0,0,0.2)" }}>
+        <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 700, letterSpacing: -0.3, color: "var(--fg)" }}>
           New {isFood ? "Restaurant" : "Activity"}
         </h3>
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input
-            autoFocus
-            value={name}
-            onChange={e => setName(e.target.value)}
-            onKeyDown={e => { if (e.key === "Escape") onCancel(); }}
-            placeholder={isFood ? "Restaurant name" : "Activity name"}
-            style={{
-              border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px",
-              fontSize: 14, fontFamily: "inherit", color: "var(--fg)",
-              background: "var(--bg)", outline: "none", transition: "border-color 0.15s",
-            }}
-            onFocus={e => e.target.style.borderColor = "var(--accent)"}
-            onBlur={e => e.target.style.borderColor = "var(--border)"}
-          />
-          <LocationSelect value={locationId} locations={locations} onChange={setLocationId} style={{ width: "100%", padding: "9px 12px", fontSize: 13 }} />
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Name */}
+          <div>
+            <FieldLabel>Name</FieldLabel>
+            <input autoFocus value={name} onChange={e => setName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Escape") onCancel(); }}
+              placeholder={isFood ? "Restaurant name" : "Activity name"}
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = "var(--accent)"}
+              onBlur={e => e.target.style.borderColor = "var(--border)"}
+            />
+          </div>
+
+          {/* Location + Price */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <FieldLabel>Location</FieldLabel>
+              <LocationSelect value={locationId} locations={locations} onChange={setLocationId} style={{ width: "100%", padding: "8px 12px", fontSize: 13 }} />
+            </div>
+            <div>
+              <FieldLabel>Price</FieldLabel>
+              <div style={{ paddingTop: 6 }}>
+                <PriceSlider value={priceLevel} onChange={setPriceLevel} />
+              </div>
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <FieldLabel>Tags</FieldLabel>
+            <TagToggle tags={tags} onChange={setTags} type={isFood ? "food" : "activity"} />
+          </div>
+
+          {/* Priority */}
+          <div>
+            <FieldLabel>Priority</FieldLabel>
+            <PillSelect value={priority} options={PRIORITY_OPTIONS} onChange={setPriority} size="xs" />
+          </div>
+
+          {/* Vibe */}
+          <div>
+            <FieldLabel>Vibe / what to expect</FieldLabel>
+            <input value={vibe} onChange={e => setVibe(e.target.value)} placeholder="e.g. cozy wine bar, great for groups…"
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = "var(--accent)"}
+              onBlur={e => e.target.style.borderColor = "var(--border)"}
+            />
+          </div>
+
+          {/* Reservation */}
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer", userSelect: "none", marginBottom: hasReservation ? 8 : 0 }}>
+              <input type="checkbox" checked={hasReservation} onChange={() => setHasReservation(v => !v)} style={{ accentColor: "var(--accent)" }} />
+              Has reservation
+            </label>
+            {hasReservation && (
+              <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <FieldLabel>Date</FieldLabel>
+                  <input type="date" value={reservationDay} onChange={e => setReservationDay(e.target.value)} style={{ ...inputStyle, fontSize: 12 }}
+                    onFocus={e => e.target.style.borderColor = "var(--accent)"}
+                    onBlur={e => e.target.style.borderColor = "var(--border)"}
+                  />
+                </div>
+                <div style={{ width: 110 }}>
+                  <FieldLabel>Time</FieldLabel>
+                  <input value={reservationTime} onChange={e => setReservationTime(e.target.value)} placeholder="7:30 PM"
+                    style={{ ...inputStyle, fontSize: 12 }}
+                    onFocus={e => e.target.style.borderColor = "var(--accent)"}
+                    onBlur={e => e.target.style.borderColor = "var(--border)"}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <FieldLabel>Notes / links</FieldLabel>
+            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Links, notes, anything useful…"
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = "var(--accent)"}
+              onBlur={e => e.target.style.borderColor = "var(--border)"}
+            />
+          </div>
+
+          {/* Actions */}
           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             <button type="button" onClick={onCancel} style={{
               flex: 1, padding: "9px 0", background: "none", border: "1px solid var(--border)",
@@ -55,17 +144,21 @@ function NewItemDialog({ isFood, locations, onConfirm, onCancel }) {
   );
 }
 
-export default function ListTab({ items, setItems, type, locations }) {
+export default function ListTab({ items, setItems, type, locations, initialSearch = "", initialLocFilter = "" }) {
   const isFood = type === "Restaurant";
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterLocId, setFilterLocId] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [filterLocId, setFilterLocId] = useState(initialLocFilter);
   const [showDialog, setShowDialog] = useState(false);
+
+  // Sync when split panel pre-seeds a search or location filter
+  useEffect(() => { setSearchQuery(initialSearch); }, [initialSearch]);
+  useEffect(() => { setFilterLocId(initialLocFilter); }, [initialLocFilter]);
 
   const removeItem = (id) => setItems(items.filter(i => i.id !== id));
   const updateItem = (id, f, v) => setItems(items.map(i => i.id === id ? { ...i, [f]: v } : i));
 
-  const handleAdd = (name, locationId) => {
-    setItems([{ id: uid(), name, locationId, priceLevel: 1, tags: isFood ? ["food"] : [], vibe: "", priority: "if-time", hasReservation: false, reservationDay: "", reservationTime: "", notes: "" }, ...items]);
+  const handleAdd = ({ name, locationId, priceLevel, tags, priority, vibe, notes, hasReservation, reservationDay, reservationTime }) => {
+    setItems([{ id: uid(), name, locationId, priceLevel, tags, vibe, priority, hasReservation, reservationDay, reservationTime, notes }, ...items]);
     setShowDialog(false);
   };
 

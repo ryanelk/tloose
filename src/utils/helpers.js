@@ -89,18 +89,10 @@ export function syncTimelineDays(oldTimeline, startDate, endDate) {
   });
 }
 
-// ─── Derived Events ───
+// ─── Derived Events (food/activity reservations only — transports/stays are stubs in day.events) ───
 export function getDerivedEvents(date, data) {
   const events = [];
   if (!date) return events;
-  (data.overview.transports || []).forEach(t => {
-    if (t.date === date) {
-      events.push({ id: "dt-" + t.id, time: t.startTime || "", text: `${t.type.charAt(0).toUpperCase() + t.type.slice(1)}: ${t.route}`, source: "transport", category: "travel" });
-      if (t.endTime) {
-        events.push({ id: "dt-arr-" + t.id, time: t.endTime || "", text: `Arrive (${t.route.split("→").pop()?.trim() || ""})`, source: "transport", category: "travel" });
-      }
-    }
-  });
   (data.food || []).forEach(item => {
     if (item.hasReservation && item.reservationDay === date) {
       events.push({ id: "df-" + item.id, time: item.reservationTime || "", text: item.name, source: "food", category: "food", priority: item.priority });
@@ -113,6 +105,43 @@ export function getDerivedEvents(date, data) {
   });
   events.sort((a, b) => (parseTimeToMinutes(a.time) || 0) - (parseTimeToMinutes(b.time) || 0));
   return events;
+}
+
+// ─── Derived Stubs ─── keeps transport/stay stubs in day.events in sync with overview data
+export function syncDerivedStubs(trip) {
+  if (!trip.timeline || !trip.overview) return trip;
+  const transports = trip.overview.transports || [];
+  const stays = trip.overview.stays || [];
+
+  const timeline = trip.timeline.map(day => {
+    // Build set of stub IDs that should exist for this day
+    const expectedIds = new Set();
+    transports.forEach(t => { if (t.date === day.date) expectedIds.add("dt-" + t.id); });
+    stays.forEach(st => {
+      if (st.startDate === day.date) expectedIds.add("ds-in-" + st.id);
+      if (st.endDate === day.date) expectedIds.add("ds-out-" + st.id);
+    });
+
+    // Remove stale stubs, preserve valid stubs in their current drag position
+    let events = day.events.filter(e => !e._derived || expectedIds.has(e.id));
+
+    // Add any new stubs that don't yet exist (prepend so they appear first by default)
+    const existingDerivedIds = new Set(events.filter(e => e._derived).map(e => e.id));
+    const newStubs = [];
+    transports.forEach(t => {
+      const id = "dt-" + t.id;
+      if (t.date === day.date && !existingDerivedIds.has(id)) newStubs.push({ id, _derived: "transport", sourceId: t.id });
+    });
+    stays.forEach(st => {
+      const inId = "ds-in-" + st.id, outId = "ds-out-" + st.id;
+      if (st.startDate === day.date && !existingDerivedIds.has(inId)) newStubs.push({ id: inId, _derived: "stay_in", sourceId: st.id });
+      if (st.endDate === day.date && !existingDerivedIds.has(outId)) newStubs.push({ id: outId, _derived: "stay_out", sourceId: st.id });
+    });
+
+    return { ...day, events: [...newStubs, ...events] };
+  });
+
+  return { ...trip, timeline };
 }
 
 // ─── Misc ───

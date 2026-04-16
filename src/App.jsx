@@ -8,7 +8,7 @@ import GistSetup from "./components/GistSetup.jsx";
 import { FONTS, TIMEZONES, DEFAULT_DATA, selectStyle } from "./data/defaults.js";
 import { loadTripsDb, saveTripsDb, createNewTrip } from "./data/tripsDb.js";
 import { getCredentials, saveCredentials, clearCredentials, loadFromGist, saveToGist, createGist, setPending, clearPending, hasPending, isGuestMode, setGuestMode, clearGuestMode } from "./data/gistStorage.js";
-import { syncTimelineDays } from "./utils/helpers.js";
+import { syncTimelineDays, syncDerivedStubs } from "./utils/helpers.js";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -86,7 +86,7 @@ function migrateTrip(s) {
   if (s.budget.categories) {
     s.budget.categories = s.budget.categories.filter(c => c.group !== "Transportation" && c.group !== "Stays");
   }
-  return s;
+  return syncDerivedStubs(s);
 }
 
 function applyMigrations(raw) {
@@ -104,6 +104,15 @@ export default function TripPlanner() {
   const [db, setDb] = useState(null);
   const [tab, setTab] = useState("overview");
   const [splitPanel, setSplitPanel] = useState(null); // null | "overview" | "food" | "activities"
+  const [splitSearch, setSplitSearch] = useState("");
+  const [splitLocFilter, setSplitLocFilter] = useState("");
+
+  // Called by Timeline to open (or toggle) the split panel, optionally pre-seeding the search/filter
+  const handleOpenSplit = useCallback((panel, search = "", locFilter = "") => {
+    setSplitPanel(panel);
+    setSplitSearch(search);
+    setSplitLocFilter(locFilter);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "saving" | "saved" | "error"
   const [syncError, setSyncError] = useState("");
@@ -186,7 +195,7 @@ export default function TripPlanner() {
         trips: prev.trips.map(t => {
           if (t.id !== prev.activeTripId) return t;
           const updated = typeof updater === "function" ? updater(t) : updater;
-          return { ...updated, id: t.id };
+          return syncDerivedStubs({ ...updated, id: t.id });
         }),
       };
       saveTripsDb(next); // local cache
@@ -459,7 +468,7 @@ export default function TripPlanner() {
           {/* Left: Timeline */}
           <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "clamp(20px, 5vw, 32px) clamp(12px, 3vw, 24px) 80px" }}>
             <div style={{ maxWidth: 600, margin: "0 auto" }}>
-              <TimelineTab data={data} setData={setD} onOpenSplit={setSplitPanel} splitPanel={splitPanel} />
+              <TimelineTab data={data} setData={setD} onOpenSplit={handleOpenSplit} splitPanel={splitPanel} />
             </div>
           </div>
           {/* Divider */}
@@ -479,8 +488,8 @@ export default function TripPlanner() {
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "clamp(20px, 5vw, 28px) clamp(12px, 3vw, 24px) 80px" }}>
               <div style={{ maxWidth: 480, margin: "0 auto" }}>
                 {splitPanel === "overview" && <OverviewTab data={data} setData={setD} tz={data.timezone} />}
-                {splitPanel === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} />}
-                {splitPanel === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} />}
+                {splitPanel === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} initialSearch={splitSearch} initialLocFilter={splitLocFilter} />}
+                {splitPanel === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} initialSearch={splitSearch} initialLocFilter={splitLocFilter} />}
               </div>
             </div>
           </div>
@@ -489,7 +498,7 @@ export default function TripPlanner() {
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
           <div style={{ maxWidth: 860, margin: "0 auto", padding: "clamp(20px, 5vw, 32px) clamp(12px, 4vw, 28px) 80px" }}>
             {tab === "overview" && <OverviewTab data={data} setData={setD} tz={data.timezone} />}
-            {tab === "timeline" && <TimelineTab data={data} setData={setD} onOpenSplit={setSplitPanel} splitPanel={splitPanel} />}
+            {tab === "timeline" && <TimelineTab data={data} setData={setD} onOpenSplit={handleOpenSplit} splitPanel={splitPanel} />}
             {tab === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} />}
             {tab === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} />}
             {tab === "budget" && <BudgetTab data={data} setData={setD} />}

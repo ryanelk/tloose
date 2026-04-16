@@ -1,6 +1,6 @@
 import { useRef, useState, useMemo } from "react";
 import { Editable, DeleteBtn, AddBtn, Badge, MultiLocationSelect, ItemSearchSelect } from "./shared.jsx";
-import { getDerivedEvents, locationOptions, uid } from "../utils/helpers.js";
+import { getDerivedEvents, locationOptions, uid, getLocationName } from "../utils/helpers.js";
 import { EVENT_TYPES, SOURCE_ICONS, SOURCE_COLORS } from "../data/defaults.js";
 
 const SPLIT_PANELS = [
@@ -9,7 +9,9 @@ const SPLIT_PANELS = [
   { id: "activities",  label: "Activities" },
 ];
 
-const SOURCE_TO_PANEL = { transport: "overview", food: "food", activity: "activities" };
+const SOURCE_TO_PANEL = { food: "food", activity: "activities" };
+
+const TRANSPORT_ICONS = { flight: "✈", bus: "🚌", train: "🚂", car: "🚗", ferry: "⛴" };
 
 export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) {
   const { timeline, locations, food, activities } = data;
@@ -21,16 +23,19 @@ export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) 
   const handleDerivedClick = (source) => {
     if (!onOpenSplit) return;
     const panel = SOURCE_TO_PANEL[source];
-    if (panel) onOpenSplit(p => p === panel ? null : panel);
+    if (panel) onOpenSplit(splitPanel === panel ? null : panel);
   };
 
-  const handleLinkedItemClick = (itemId) => {
+  // When a linked item is clicked, open the relevant panel pre-seeded with the item name and day's location
+  const makeLinkedItemClickHandler = (dayLocationIds) => (itemId) => {
     if (!onOpenSplit || !itemId) return;
     const isFoodItem = food.some(f => f.id === itemId);
-    onOpenSplit(p => {
-      const panel = isFoodItem ? "food" : "activities";
-      return p === panel ? null : panel;
-    });
+    const item = isFoodItem ? food.find(f => f.id === itemId) : activities.find(a => a.id === itemId);
+    const panel = isFoodItem ? "food" : "activities";
+    // Pick the first top-level location from the day, falling back to first sublocation's parent
+    const topLevel = (dayLocationIds || []).find(id => locations.some(l => l.id === id));
+    const firstLoc = topLevel || (dayLocationIds || [])[0] || "";
+    onOpenSplit(panel, item?.name || "", firstLoc);
   };
 
   const moveEvent = (dayId, fromIdx, toIdx) => {
@@ -79,7 +84,7 @@ export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) 
             {SPLIT_PANELS.map(p => {
               const active = splitPanel === p.id;
               return (
-                <button key={p.id} onClick={() => onOpenSplit(cur => cur === p.id ? null : p.id)} style={{
+                <button key={p.id} onClick={() => onOpenSplit(splitPanel === p.id ? null : p.id)} style={{
                   padding: "3px 10px", fontSize: 11, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
                   border: active ? "1px solid var(--accent)" : "1px solid var(--border)", borderRadius: 10,
                   background: active ? "var(--accent-dim)" : "transparent",
@@ -109,7 +114,6 @@ export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) 
           <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 4 }}>
             <span style={{ fontSize: 17, fontWeight: 700 }}>{day.label}</span>
             <Editable value={day.subtitle || ""} onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, subtitle: v } : d))} placeholder="Theme (e.g. Museum Day)" style={{ width: 200, fontSize: 13, color: "var(--muted)", fontStyle: "italic" }} />
-            <span style={{ fontSize: 11, color: "var(--muted)" }}>{day.date}</span>
             <div style={{ flex: 1 }} />
           </div>
           <div style={{ marginBottom: 8, paddingLeft: 2 }}>
@@ -141,37 +145,82 @@ export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) 
             )}
 
             {day.events.map((ev, idx) => {
-              const et = EVENT_TYPES[ev.type] || EVENT_TYPES.potential;
               const isTarget = dragOver?.dayId === day.id && dragOver?.idx === idx;
-              return <div
-                key={ev.id}
-                draggable
-                onDragStart={() => { dragRef.current = { dayId: day.id, fromIdx: idx }; }}
-                onDragOver={e => { e.preventDefault(); setDragOver({ dayId: day.id, idx }); }}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={e => {
+              const dragProps = {
+                draggable: true,
+                onDragStart: () => { dragRef.current = { dayId: day.id, fromIdx: idx }; },
+                onDragOver: e => { e.preventDefault(); setDragOver({ dayId: day.id, idx }); },
+                onDragLeave: () => setDragOver(null),
+                onDrop: e => {
                   e.preventDefault();
                   if (dragRef.current?.dayId === day.id) moveEvent(day.id, dragRef.current.fromIdx, idx);
-                  dragRef.current = null;
-                  setDragOver(null);
-                }}
-                onDragEnd={() => { dragRef.current = null; setDragOver(null); }}
-                style={{
-                  display: "flex", gap: 6, alignItems: "center", padding: "2px 0", flexWrap: "wrap",
-                  borderTop: isTarget ? "2px solid var(--accent)" : "2px solid transparent",
-                  borderRadius: 4, cursor: "default",
-                }}
-              >
-                <span style={{ cursor: "grab", color: "var(--muted)", fontSize: 13, flexShrink: 0, padding: "0 1px", lineHeight: 1, opacity: 0.5, userSelect: "none" }}>⠿</span>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: et.text, flexShrink: 0 }} />
-                <Editable value={ev.text} onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.map(e => e.id === ev.id ? { ...e, text: v } : e) } : d))} placeholder="Event name" style={{ minWidth: 120, flex: "1 1 140px", fontSize: 13 }} />
-                <div style={{ flex: "1 1 200px", minWidth: 150 }}>
-                  <ItemSearchSelect value={ev.linkedItemId || ""} food={food} activities={activities}
-                    onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.map(e => e.id === ev.id ? { ...e, linkedItemId: v } : e) } : d))}
-                    onInspect={onOpenSplit ? handleLinkedItemClick : null} />
+                  dragRef.current = null; setDragOver(null);
+                },
+                onDragEnd: () => { dragRef.current = null; setDragOver(null); },
+              };
+              const rowBase = {
+                display: "flex", gap: 6, alignItems: "center", padding: "2px 0",
+                borderTop: isTarget ? "2px solid var(--accent)" : "2px solid transparent",
+                borderRadius: 4, cursor: "default",
+              };
+              const dragHandle = <span style={{ cursor: "grab", color: "var(--muted)", fontSize: 13, flexShrink: 0, padding: "0 1px", lineHeight: 1, opacity: 0.5, userSelect: "none" }}>⠿</span>;
+
+              // ── Transport stub ──
+              if (ev._derived === "transport") {
+                const t = (data.overview.transports || []).find(t => t.id === ev.sourceId);
+                if (!t) return null;
+                const icon = TRANSPORT_ICONS[t.type] || "🚌";
+                const label = `${t.type.charAt(0).toUpperCase() + t.type.slice(1)}: ${t.route}`;
+                return (
+                  <div key={ev.id} {...dragProps} style={rowBase}>
+                    {dragHandle}
+                    <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>{icon}</span>
+                    {onOpenSplit ? (
+                      <button onClick={() => onOpenSplit("overview", "", "")} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--accent)", fontWeight: 500, fontFamily: "inherit", textAlign: "left" }}>{label}</button>
+                    ) : (
+                      <span style={{ fontSize: 13, color: "var(--accent)", fontWeight: 500 }}>{label}</span>
+                    )}
+                    {t.startTime && <span style={{ fontSize: 11, color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}>{t.startTime}{t.endTime ? ` → ${t.endTime}` : ""}</span>}
+                    {t.airline && <span style={{ fontSize: 11, color: "var(--muted)" }}>{t.airline}</span>}
+                  </div>
+                );
+              }
+
+              // ── Stay check-in / check-out stub ──
+              if (ev._derived === "stay_in" || ev._derived === "stay_out") {
+                const st = (data.overview.stays || []).find(s => s.id === ev.sourceId);
+                if (!st) return null;
+                const isIn = ev._derived === "stay_in";
+                const locName = getLocationName(locations, st.locationId);
+                const label = `${isIn ? "Check-in" : "Check-out"}: ${locName}`;
+                return (
+                  <div key={ev.id} {...dragProps} style={rowBase}>
+                    {dragHandle}
+                    <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>🏨</span>
+                    {onOpenSplit ? (
+                      <button onClick={() => onOpenSplit("overview", "", "")} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--muted)", fontWeight: 500, fontFamily: "inherit", textAlign: "left" }}>{label}</button>
+                    ) : (
+                      <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 500 }}>{label}</span>
+                    )}
+                  </div>
+                );
+              }
+
+              // ── Regular manual event ──
+              const et = EVENT_TYPES[ev.type] || EVENT_TYPES.potential;
+              return (
+                <div key={ev.id} {...dragProps} style={{ ...rowBase, flexWrap: "wrap" }}>
+                  {dragHandle}
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: et.text, flexShrink: 0 }} />
+                  <Editable value={ev.text} onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.map(e => e.id === ev.id ? { ...e, text: v } : e) } : d))} placeholder="Event name" style={{ minWidth: 120, flex: "1 1 140px", fontSize: 13 }} />
+                  <div style={{ flex: "1 1 200px", minWidth: 150 }}>
+                    <ItemSearchSelect value={ev.linkedItemId || ""} food={food} activities={activities}
+                      onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.map(e => e.id === ev.id ? { ...e, linkedItemId: v } : e) } : d))}
+                      onInspect={onOpenSplit ? makeLinkedItemClickHandler(day.locationIds) : null} />
+                  </div>
+                  <DeleteBtn onClick={() => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.filter(e => e.id !== ev.id) } : d))} />
                 </div>
-                <DeleteBtn onClick={() => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.filter(e => e.id !== ev.id) } : d))} />
-              </div>;
+              );
             })}
 
             {allEmpty && <div style={{ fontSize: 12, color: "var(--muted)", padding: "4px 0", fontStyle: "italic" }}>No events yet</div>}
