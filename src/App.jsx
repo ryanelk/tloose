@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import OverviewTab from "./components/Overview.jsx";
 import TimelineTab from "./components/Timeline.jsx";
 import ListTab from "./components/ListTab.jsx";
+import StaysTab from "./components/StaysTab.jsx";
 import BudgetTab from "./components/Budget.jsx";
 import { ThemeSlider, SettingsMenu } from "./components/Settings.jsx";
 import GistSetup from "./components/GistSetup.jsx";
@@ -15,6 +16,7 @@ const TABS = [
   { id: "timeline", label: "Timeline" },
   { id: "food", label: "Food" },
   { id: "activities", label: "Activities" },
+  { id: "stays", label: "Stays" },
   { id: "budget", label: "Budget" },
 ];
 
@@ -69,6 +71,7 @@ function migrateTrip(s) {
   }
   if (!s.food) s.food = DEFAULT_DATA.food;
   if (!s.activities) s.activities = DEFAULT_DATA.activities;
+  if (!s.stayOptions) s.stayOptions = [];
   const migrateItem = (item) => {
     const migrated = { ...item };
     if (migrated.reservationDay === undefined) { migrated.reservationDay = ""; migrated.reservationTime = ""; delete migrated.reservationDate; }
@@ -501,6 +504,7 @@ export default function TripPlanner() {
             {tab === "timeline" && <TimelineTab data={data} setData={setD} onOpenSplit={handleOpenSplit} splitPanel={splitPanel} />}
             {tab === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} />}
             {tab === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} />}
+            {tab === "stays" && <StaysTab items={data.stayOptions} setItems={v => setD(d => ({ ...d, stayOptions: v }))} locations={data.locations} />}
             {tab === "budget" && <BudgetTab data={data} setData={setD} />}
           </div>
         </div>

@@ -1,6 +1,69 @@
+import { useState, useRef, useEffect } from "react";
 import { Editable, DeleteBtn, AddBtn, LocationSelect } from "./shared.jsx";
 import { calcDuration, calcRecommendedArrival, uid, syncTimelineDays, generateDateRange } from "../utils/helpers.js";
 import { TRANSPORT_TYPES, selectStyle, sectionHeaderStyle } from "../data/defaults.js";
+
+function StayOptionPicker({ locationId, stayOptions, currentName, onChangeName, onSelectOption }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const opts = (stayOptions || []).filter(o => {
+    const locMatch = !locationId || o.locationId === locationId;
+    const qMatch = !currentName || o.name.toLowerCase().includes(currentName.toLowerCase());
+    return locMatch && qMatch;
+  });
+
+  return (
+    <div ref={ref} style={{ position: "relative", flex: 1, minWidth: 140 }}>
+      <input
+        value={currentName}
+        onChange={e => { onChangeName(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder="Name or search options…"
+        style={{
+          background: "transparent", border: "none", borderBottom: "1.5px solid transparent",
+          padding: "4px 0", color: "var(--fg)", fontSize: 13, fontFamily: "inherit", width: "100%",
+          boxSizing: "border-box", outline: "none", transition: "border-color 0.15s",
+        }}
+        onFocus={e => { e.target.style.borderBottomColor = "var(--accent)"; setOpen(true); }}
+        onBlur={e => e.target.style.borderBottomColor = "transparent"}
+      />
+      {open && opts.length > 0 && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 8,
+          maxHeight: 180, overflowY: "auto", zIndex: 50,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+        }}>
+          {opts.slice(0, 8).map(o => (
+            <button
+              key={o.id}
+              onMouseDown={e => { e.preventDefault(); onSelectOption(o); setOpen(false); }}
+              style={{
+                display: "flex", gap: 8, alignItems: "center", width: "100%", padding: "7px 10px",
+                background: "transparent", border: "none", cursor: "pointer", textAlign: "left",
+                fontSize: 12, color: "var(--fg)", fontFamily: "inherit",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--pill-track)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <span>{o.type === "hotel" ? "🏨" : o.type === "airbnb" ? "🏠" : "📍"}</span>
+              <span style={{ fontWeight: 500, flex: 1 }}>{o.name}</span>
+              {o.type && <span style={{ fontSize: 10, color: "var(--muted)", textTransform: "capitalize" }}>{o.type}</span>}
+              {o.pricePerDay > 0 && <span style={{ fontSize: 11, color: "var(--muted)" }}>${o.pricePerDay}/night</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LocationsSection({ locations, setLocations }) {
   const addLoc = () => setLocations([...locations, { id: uid(), name: "", sublocations: [] }]);
@@ -66,7 +129,7 @@ function TransportRow({ t, onChange, onDelete, tz }) {
 }
 
 export default function OverviewTab({ data, setData, tz }) {
-  const { tripName, startDate, endDate, overview, locations } = data;
+  const { tripName, startDate, endDate, overview, locations, stayOptions } = data;
   const update = (path, val) => {
     setData(d => { const n = JSON.parse(JSON.stringify(d)); const k = path.split("."); let o = n; for (let i = 0; i < k.length - 1; i++) o = o[k[i]]; o[k[k.length - 1]] = val; return n; });
   };
@@ -130,14 +193,27 @@ export default function OverviewTab({ data, setData, tz }) {
       <div style={sectionHeaderStyle}><span>Stays</span><AddBtn label="Stay" onClick={() => update("overview.stays", [...overview.stays, { id: uid(), locationId: "", name: "", startDate: "", endDate: "", budgeted: 0, actual: 0 }])} /></div>
       {overview.stays.map((s, i) => {
         const nights = calcNights(s.startDate, s.endDate);
-        return <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", paddingBottom: 10, borderBottom: "1px solid var(--border-subtle)", marginBottom: 4, flexWrap: "wrap" }}>
-          <LocationSelect value={s.locationId} locations={locations} onChange={v => { const arr = [...overview.stays]; arr[i] = { ...s, locationId: v }; update("overview.stays", arr); }} style={{ width: 160 }} />
-          <Editable value={s.name} onChange={v => { const arr = [...overview.stays]; arr[i] = { ...s, name: v }; update("overview.stays", arr); }} placeholder="Name" style={{ flex: 1, minWidth: 140 }} />
-          <input type="date" value={s.startDate} onChange={e => { const arr = [...overview.stays]; arr[i] = { ...s, startDate: e.target.value }; update("overview.stays", arr); }} style={{ ...selectStyle, fontSize: 12 }} />
-          <span style={{ color: "var(--muted)", fontSize: 11 }}>→</span>
-          <input type="date" value={s.endDate} onChange={e => { const arr = [...overview.stays]; arr[i] = { ...s, endDate: e.target.value }; update("overview.stays", arr); }} style={{ ...selectStyle, fontSize: 12 }} />
-          {nights && <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{nights}n</span>}
-          <DeleteBtn onClick={() => update("overview.stays", overview.stays.filter(x => x.id !== s.id))} />
+        const updStay = (patch) => { const arr = [...overview.stays]; arr[i] = { ...s, ...patch }; update("overview.stays", arr); };
+        const handleSelectOption = (opt) => {
+          const autoBudget = nights && opt.pricePerDay > 0 ? opt.pricePerDay * nights : s.budgeted;
+          updStay({ name: opt.name, budgeted: autoBudget });
+        };
+        return <div key={s.id} style={{ paddingBottom: 12, borderBottom: "1px solid var(--border-subtle)", marginBottom: 4 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <LocationSelect value={s.locationId} locations={locations} onChange={v => updStay({ locationId: v })} style={{ width: 160 }} />
+            <StayOptionPicker
+              locationId={s.locationId}
+              stayOptions={stayOptions || []}
+              currentName={s.name}
+              onChangeName={v => updStay({ name: v })}
+              onSelectOption={handleSelectOption}
+            />
+            <input type="date" value={s.startDate} onChange={e => { const nights2 = calcNights(e.target.value, s.endDate); const opt = (stayOptions || []).find(o => o.name === s.name); updStay({ startDate: e.target.value, budgeted: nights2 && opt?.pricePerDay > 0 ? opt.pricePerDay * nights2 : s.budgeted }); }} style={{ ...selectStyle, fontSize: 12 }} />
+            <span style={{ color: "var(--muted)", fontSize: 11 }}>→</span>
+            <input type="date" value={s.endDate} onChange={e => { const nights2 = calcNights(s.startDate, e.target.value); const opt = (stayOptions || []).find(o => o.name === s.name); updStay({ endDate: e.target.value, budgeted: nights2 && opt?.pricePerDay > 0 ? opt.pricePerDay * nights2 : s.budgeted }); }} style={{ ...selectStyle, fontSize: 12 }} />
+            {nights && <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{nights}n</span>}
+            <DeleteBtn onClick={() => update("overview.stays", overview.stays.filter(x => x.id !== s.id))} />
+          </div>
         </div>;
       })}
     </div>

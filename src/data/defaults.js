@@ -113,6 +113,10 @@ export const DEFAULT_DATA = {
       { id: "e4", time: "1:00 PM", text: "Lunch in Coyoacán", type: "potential", category: "food" },
     ]},
   ],
+  stayOptions: [
+    { id: "so1", name: "Hotel Carlota", locationId: "loc2", type: "hotel", pricePerDay: 120, vibe: "Modern boutique hotel, rooftop pool, quiet street in Cuauhtémoc", notes: "hotelcarlota.mx" },
+    { id: "so2", name: "Airbnb Roma Norte Apt", locationId: "sub2", type: "airbnb", pricePerDay: 85, vibe: "2BR apartment, private patio, 5 min walk to Álvaro Obregón", notes: "" },
+  ],
   food: [
     { id: "r1", name: "Esquina Común", locationId: "sub2", priceLevel: 4, tags: ["food"], vibe: "One Michelin star, need to DM on IG to reserve", priority: "must-visit", hasReservation: true, reservationDay: "2025-08-23", reservationTime: "4:00 PM", notes: "Cheaper than other starred places" },
     { id: "r2", name: "Voraz", locationId: "sub2", priceLevel: 2, tags: ["food", "drinks"], vibe: "Experimental Mexican, Bib Gourmand", priority: "must-visit", hasReservation: false, reservationDay: "", reservationTime: "", notes: "" },
