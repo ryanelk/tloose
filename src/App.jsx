@@ -3,6 +3,7 @@ import OverviewTab from "./components/Overview.jsx";
 import TimelineTab from "./components/Timeline.jsx";
 import ListTab from "./components/ListTab.jsx";
 import StaysTab from "./components/StaysTab.jsx";
+import OutfitsTab from "./components/OutfitsTab.jsx";
 import BudgetTab from "./components/Budget.jsx";
 import { ThemeSlider, SettingsMenu } from "./components/Settings.jsx";
 import GistSetup from "./components/GistSetup.jsx";
@@ -17,6 +18,7 @@ const TABS = [
   { id: "food", label: "Food" },
   { id: "activities", label: "Activities" },
   { id: "stays", label: "Stays" },
+  { id: "outfits", label: "Outfits" },
   { id: "budget", label: "Budget" },
 ];
 
@@ -72,6 +74,8 @@ function migrateTrip(s) {
   if (!s.food) s.food = DEFAULT_DATA.food;
   if (!s.activities) s.activities = DEFAULT_DATA.activities;
   if (!s.stayOptions) s.stayOptions = [];
+  if (!s.outfits) s.outfits = [];
+  s.timeline = s.timeline.map(d => ({ ...d, outfitIds: d.outfitIds || [] }));
   const migrateItem = (item) => {
     const migrated = { ...item };
     if (migrated.reservationDay === undefined) { migrated.reservationDay = ""; migrated.reservationTime = ""; delete migrated.reservationDate; }
@@ -505,6 +509,7 @@ export default function TripPlanner() {
             {tab === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} />}
             {tab === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} />}
             {tab === "stays" && <StaysTab items={data.stayOptions} setItems={v => setD(d => ({ ...d, stayOptions: v }))} locations={data.locations} />}
+            {tab === "outfits" && <OutfitsTab items={data.outfits} setItems={v => setD(d => ({ ...d, outfits: v }))} />}
             {tab === "budget" && <BudgetTab data={data} setData={setD} />}
           </div>
         </div>

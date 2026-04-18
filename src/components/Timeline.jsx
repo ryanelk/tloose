@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo } from "react";
-import { Editable, DeleteBtn, AddBtn, Badge, MultiLocationSelect, ItemSearchSelect } from "./shared.jsx";
+import { Editable, DeleteBtn, AddBtn, Badge, MultiLocationSelect, OutfitMultiSelect, ItemSearchSelect } from "./shared.jsx";
 import { getDerivedEvents, locationOptions, uid, getLocationName } from "../utils/helpers.js";
 import { EVENT_TYPES, SOURCE_ICONS, SOURCE_COLORS } from "../data/defaults.js";
 
@@ -14,7 +14,7 @@ const SOURCE_TO_PANEL = { food: "food", activity: "activities" };
 const TRANSPORT_ICONS = { flight: "✈", bus: "🚌", train: "🚂", car: "🚗", ferry: "⛴" };
 
 export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) {
-  const { timeline, locations, food, activities } = data;
+  const { timeline, locations, food, activities, outfits } = data;
   const set = (tl) => setData(d => ({ ...d, timeline: tl }));
   const dragRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);
@@ -116,9 +116,14 @@ export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) 
             <Editable value={day.subtitle || ""} onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, subtitle: v } : d))} placeholder="Theme (e.g. Museum Day)" style={{ width: 200, fontSize: 13, color: "var(--muted)", fontStyle: "italic" }} />
             <div style={{ flex: 1 }} />
           </div>
-          <div style={{ marginBottom: 8, paddingLeft: 2 }}>
+          <div style={{ marginBottom: 6, paddingLeft: 2 }}>
             <MultiLocationSelect value={day.locationIds || []} locations={locations} onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, locationIds: v } : d))} />
           </div>
+          {(outfits || []).length > 0 && (
+            <div style={{ marginBottom: 8, paddingLeft: 2 }}>
+              <OutfitMultiSelect value={day.outfitIds || []} outfits={outfits || []} onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, outfitIds: v } : d))} />
+            </div>
+          )}
 
           <div style={{ borderLeft: "2px solid var(--border)", marginLeft: 8, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 5 }}>
             {derived.map(ev => (

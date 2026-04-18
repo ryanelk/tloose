@@ -120,6 +120,29 @@ export function MultiLocationSelect({ value, locations, onChange }) {
   </div>;
 }
 
+export function OutfitMultiSelect({ value, outfits, onChange }) {
+  const selected = value || [];
+  const add = (id) => { if (id && !selected.includes(id)) onChange([...selected, id]); };
+  const remove = (id) => onChange(selected.filter(i => i !== id));
+  const available = (outfits || []).filter(o => !selected.includes(o.id));
+  return <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+    {selected.map(id => {
+      const outfit = (outfits || []).find(o => o.id === id);
+      if (!outfit) return null;
+      return (
+        <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 2, background: "var(--accent-dim)", border: "1px solid var(--accent)", borderRadius: 10, padding: "1px 4px 1px 8px", fontSize: 11, color: "var(--accent)" }}>
+          👗 {outfit.name}
+          <button onClick={() => remove(id)} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, padding: "0 2px", lineHeight: 1, opacity: 0.7 }}>×</button>
+        </span>
+      );
+    })}
+    <select value="" onChange={e => add(e.target.value)} style={{ ...selectStyle, fontSize: 11, width: selected.length > 0 ? 30 : 130, padding: "2px 4px", opacity: selected.length > 0 ? 0.5 : 1 }}>
+      <option value="">{selected.length > 0 ? "+" : "— Outfits —"}</option>
+      {available.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+    </select>
+  </div>;
+}
+
 export function ItemSearchSelect({ value, food, activities, onChange, onInspect }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);

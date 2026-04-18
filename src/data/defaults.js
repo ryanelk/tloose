@@ -113,6 +113,10 @@ export const DEFAULT_DATA = {
       { id: "e4", time: "1:00 PM", text: "Lunch in Coyoacán", type: "potential", category: "food" },
     ]},
   ],
+  outfits: [
+    { id: "out1", name: "Museum Day", tags: ["casual", "outdoor"], vibe: "Comfortable walking shoes, light layer — lots of walking", notes: "" },
+    { id: "out2", name: "Rooftop Dinner", tags: ["formal", "night-out"], vibe: "Dress or nice trousers, elevated but breathable in August heat", notes: "" },
+  ],
   stayOptions: [
     { id: "so1", name: "Hotel Carlota", locationId: "loc2", type: "hotel", pricePerDay: 120, vibe: "Modern boutique hotel, rooftop pool, quiet street in Cuauhtémoc", notes: "hotelcarlota.mx" },
     { id: "so2", name: "Airbnb Roma Norte Apt", locationId: "sub2", type: "airbnb", pricePerDay: 85, vibe: "2BR apartment, private patio, 5 min walk to Álvaro Obregón", notes: "" },
