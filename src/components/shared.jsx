@@ -143,7 +143,9 @@ export function OutfitMultiSelect({ value, outfits, onChange }) {
   </div>;
 }
 
-export function ItemSearchSelect({ value, food, activities, onChange, onInspect }) {
+const ITEM_ICON = { food: "🍽", activity: "📍", stay: "🏨" };
+
+export function ItemSearchSelect({ value, food, activities, stays, onChange, onInspect }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -156,13 +158,14 @@ export function ItemSearchSelect({ value, food, activities, onChange, onInspect 
   const allItems = [
     ...(food || []).map(i => ({ ...i, _type: "food" })),
     ...(activities || []).map(i => ({ ...i, _type: "activity" })),
+    ...(stays || []).map(i => ({ ...i, _type: "stay" })),
   ];
   const linked = value ? allItems.find(i => i.id === value) : null;
   const filtered = query.length > 0 ? allItems.filter(i => i.name.toLowerCase().includes(query.toLowerCase())) : allItems;
 
   if (linked) {
     return <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <span style={{ fontSize: 12 }}>{linked._type === "food" ? "🍽" : "📍"}</span>
+      <span style={{ fontSize: 12 }}>{ITEM_ICON[linked._type] || "📍"}</span>
       {onInspect ? (
         <button onClick={() => onInspect(linked.id)} style={{
           background: "none", border: "none", padding: 0, cursor: "pointer",
@@ -178,7 +181,7 @@ export function ItemSearchSelect({ value, food, activities, onChange, onInspect 
 
   return <div ref={ref} style={{ position: "relative", flex: 1 }}>
     <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-      placeholder="Search food / activity…" style={{
+      placeholder="Search food / activity / stay…" style={{
         background: "transparent", border: "none", borderBottom: "1.5px solid transparent",
         padding: "4px 0", color: "var(--fg)", fontSize: 12, fontFamily: "inherit", width: "100%",
         boxSizing: "border-box", outline: "none",
@@ -194,10 +197,10 @@ export function ItemSearchSelect({ value, food, activities, onChange, onInspect 
             display: "flex", gap: 6, alignItems: "center", width: "100%", padding: "6px 10px",
             background: "transparent", border: "none", cursor: "pointer", textAlign: "left",
             fontSize: 12, color: "var(--fg)", fontFamily: "inherit",
-          }} onMouseEnter={e => e.target.style.background = "var(--pill-track)"} onMouseLeave={e => e.target.style.background = "transparent"}>
-            <span>{item._type === "food" ? "🍽" : "📍"}</span>
+          }} onMouseEnter={e => e.currentTarget.style.background = "var(--pill-track)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+            <span>{ITEM_ICON[item._type] || "📍"}</span>
             <span style={{ fontWeight: 500 }}>{item.name}</span>
-            <span style={{ color: "var(--muted)", fontSize: 11 }}>{"$".repeat(item.priceLevel || 1)}</span>
+            {item._type !== "stay" && <span style={{ color: "var(--muted)", fontSize: 11 }}>{"$".repeat(item.priceLevel || 1)}</span>}
           </button>
         ))}
       </div>

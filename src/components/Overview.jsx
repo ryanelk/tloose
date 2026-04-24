@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Editable, DeleteBtn, AddBtn, LocationSelect } from "./shared.jsx";
-import { calcDuration, calcRecommendedArrival, uid, syncTimelineDays, generateDateRange } from "../utils/helpers.js";
+import { calcDuration, calcRecommendedArrival, uid, syncTimelineDays, generateDateRange, getLocationName } from "../utils/helpers.js";
 import { TRANSPORT_TYPES, selectStyle, sectionHeaderStyle } from "../data/defaults.js";
 
 function StayOptionPicker({ locationId, stayOptions, currentName, onChangeName, onSelectOption }) {
@@ -198,8 +198,11 @@ export default function OverviewTab({ data, setData, tz }) {
           const autoBudget = nights && opt.pricePerDay > 0 ? opt.pricePerDay * nights : s.budgeted;
           updStay({ name: opt.name, budgeted: autoBudget });
         };
-        return <div key={s.id} style={{ paddingBottom: 12, borderBottom: "1px solid var(--border-subtle)", marginBottom: 4 }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        const locName = s.locationId ? getLocationName(locations, s.locationId).replace(" → ", " ") : "";
+        const mapsHref = locName ? `https://www.google.com/maps/search/${encodeURIComponent(locName)}` : null;
+        return <div key={s.id} style={{ paddingBottom: 14, borderBottom: "1px solid var(--border-subtle)", marginBottom: 4 }}>
+          {/* Row 1: location + name + map link + delete */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
             <LocationSelect value={s.locationId} locations={locations} onChange={v => updStay({ locationId: v })} style={{ width: 160 }} />
             <StayOptionPicker
               locationId={s.locationId}
@@ -208,11 +211,28 @@ export default function OverviewTab({ data, setData, tz }) {
               onChangeName={v => updStay({ name: v })}
               onSelectOption={handleSelectOption}
             />
-            <input type="date" value={s.startDate} onChange={e => { const nights2 = calcNights(e.target.value, s.endDate); const opt = (stayOptions || []).find(o => o.name === s.name); updStay({ startDate: e.target.value, budgeted: nights2 && opt?.pricePerDay > 0 ? opt.pricePerDay * nights2 : s.budgeted }); }} style={{ ...selectStyle, fontSize: 12 }} />
-            <span style={{ color: "var(--muted)", fontSize: 11 }}>→</span>
-            <input type="date" value={s.endDate} onChange={e => { const nights2 = calcNights(s.startDate, e.target.value); const opt = (stayOptions || []).find(o => o.name === s.name); updStay({ endDate: e.target.value, budgeted: nights2 && opt?.pricePerDay > 0 ? opt.pricePerDay * nights2 : s.budgeted }); }} style={{ ...selectStyle, fontSize: 12 }} />
-            {nights && <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{nights}n</span>}
+            {mapsHref && (
+              <a href={mapsHref} target="_blank" rel="noopener" style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", fontWeight: 500, flexShrink: 0 }}>↗ Map</a>
+            )}
             <DeleteBtn onClick={() => update("overview.stays", overview.stays.filter(x => x.id !== s.id))} />
+          </div>
+          {/* Row 2: dates + nights */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", paddingLeft: 2, flexWrap: "wrap", marginBottom: 4 }}>
+            <input type="date" value={s.startDate} onChange={e => { const n2 = calcNights(e.target.value, s.endDate); const opt = (stayOptions || []).find(o => o.name === s.name); updStay({ startDate: e.target.value, budgeted: n2 && opt?.pricePerDay > 0 ? opt.pricePerDay * n2 : s.budgeted }); }} style={{ ...selectStyle, fontSize: 12 }} />
+            <span style={{ color: "var(--muted)", fontSize: 11 }}>→</span>
+            <input type="date" value={s.endDate} onChange={e => { const n2 = calcNights(s.startDate, e.target.value); const opt = (stayOptions || []).find(o => o.name === s.name); updStay({ endDate: e.target.value, budgeted: n2 && opt?.pricePerDay > 0 ? opt.pricePerDay * n2 : s.budgeted }); }} style={{ ...selectStyle, fontSize: 12 }} />
+            {nights && <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{nights}n</span>}
+          </div>
+          {/* Row 3: check-in / check-out times */}
+          <div style={{ display: "flex", gap: 16, alignItems: "center", paddingLeft: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8 }}>Check-in</span>
+              <Editable value={s.checkInTime || ""} onChange={v => updStay({ checkInTime: v })} placeholder="3:00 PM" style={{ width: 80, fontSize: 12 }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8 }}>Check-out</span>
+              <Editable value={s.checkOutTime || ""} onChange={v => updStay({ checkOutTime: v })} placeholder="11:00 AM" style={{ width: 80, fontSize: 12 }} />
+            </div>
           </div>
         </div>;
       })}

@@ -29,10 +29,11 @@ export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) 
   // When a linked item is clicked, open the relevant panel pre-seeded with the item name and day's location
   const makeLinkedItemClickHandler = (dayLocationIds) => (itemId) => {
     if (!onOpenSplit || !itemId) return;
+    const isStayItem = (data.overview.stays || []).some(s => s.id === itemId);
+    if (isStayItem) { onOpenSplit("overview", "", ""); return; }
     const isFoodItem = food.some(f => f.id === itemId);
     const item = isFoodItem ? food.find(f => f.id === itemId) : activities.find(a => a.id === itemId);
     const panel = isFoodItem ? "food" : "activities";
-    // Pick the first top-level location from the day, falling back to first sublocation's parent
     const topLevel = (dayLocationIds || []).find(id => locations.some(l => l.id === id));
     const firstLoc = topLevel || (dayLocationIds || [])[0] || "";
     onOpenSplit(panel, item?.name || "", firstLoc);
@@ -196,17 +197,18 @@ export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) 
                 const st = (data.overview.stays || []).find(s => s.id === ev.sourceId);
                 if (!st) return null;
                 const isIn = ev._derived === "stay_in";
-                const locName = getLocationName(locations, st.locationId);
-                const label = `${isIn ? "Check-in" : "Check-out"}: ${locName}`;
+                const label = `${isIn ? "Check-in" : "Check-out"}: ${st.name || getLocationName(locations, st.locationId)}`;
+                const time = isIn ? st.checkInTime : st.checkOutTime;
                 return (
                   <div key={ev.id} {...dragProps} style={rowBase}>
                     {dragHandle}
                     <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>🏨</span>
                     {onOpenSplit ? (
-                      <button onClick={() => onOpenSplit("overview", "", "")} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--muted)", fontWeight: 500, fontFamily: "inherit", textAlign: "left" }}>{label}</button>
+                      <button onClick={() => onOpenSplit("overview", "", "")} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: SOURCE_COLORS.stay, fontWeight: 500, fontFamily: "inherit", textAlign: "left" }}>{label}</button>
                     ) : (
-                      <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 500 }}>{label}</span>
+                      <span style={{ fontSize: 13, color: SOURCE_COLORS.stay, fontWeight: 500 }}>{label}</span>
                     )}
+                    {time && <span style={{ fontSize: 11, color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}>{time}</span>}
                   </div>
                 );
               }
@@ -219,7 +221,7 @@ export default function TimelineTab({ data, setData, onOpenSplit, splitPanel }) 
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: et.text, flexShrink: 0 }} />
                   <Editable value={ev.text} onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.map(e => e.id === ev.id ? { ...e, text: v } : e) } : d))} placeholder="Event name" style={{ minWidth: 120, flex: "1 1 140px", fontSize: 13 }} />
                   <div style={{ flex: "1 1 200px", minWidth: 150 }}>
-                    <ItemSearchSelect value={ev.linkedItemId || ""} food={food} activities={activities}
+                    <ItemSearchSelect value={ev.linkedItemId || ""} food={food} activities={activities} stays={data.overview.stays}
                       onChange={v => set(timeline.map(d => d.id === day.id ? { ...d, events: d.events.map(e => e.id === ev.id ? { ...e, linkedItemId: v } : e) } : d))}
                       onInspect={onOpenSplit ? makeLinkedItemClickHandler(day.locationIds) : null} />
                   </div>

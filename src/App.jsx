@@ -58,8 +58,11 @@ function migrateTrip(s) {
   if (!s.overview.stays) s.overview.stays = [];
   if (!s.overview.deadlines) s.overview.deadlines = [];
   s.overview.stays = s.overview.stays.map(st => ({
-    ...st, locationId: st.locationId || "", startDate: st.startDate || "",
+    ...st,
+    locationId: st.locationId || "", startDate: st.startDate || "",
     endDate: st.endDate || "", budgeted: st.budgeted ?? 0, actual: st.actual ?? 0,
+    checkInTime: st.checkInTime || "3:00 PM",
+    checkOutTime: st.checkOutTime || "11:00 AM",
   }));
   if (!s.timeline) s.timeline = [];
   s.timeline = s.timeline.map(d => ({
