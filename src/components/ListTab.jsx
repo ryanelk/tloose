@@ -3,8 +3,15 @@ import { Editable, DeleteBtn, AddBtn, Badge, PillSelect, LocationSelect, PriceSl
 import { getLocationName, locationOptions, uid } from "../utils/helpers.js";
 import { PRIORITY_OPTIONS, selectStyle } from "../data/defaults.js";
 
-function FieldLabel({ children }) {
-  return <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{children}</div>;
+function FieldLabel({ children, right }) {
+  const base = { fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8 };
+  if (right) return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+      <span style={base}>{children}</span>
+      {right}
+    </div>
+  );
+  return <div style={{ ...base, marginBottom: 4 }}>{children}</div>;
 }
 
 function NewItemDialog({ isFood, locations, onConfirm, onCancel }) {
@@ -43,7 +50,26 @@ function NewItemDialog({ isFood, locations, onConfirm, onCancel }) {
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Name */}
           <div>
-            <FieldLabel>Name</FieldLabel>
+            <FieldLabel right={name.trim() && (
+              <span style={{ display: "inline-flex", gap: 8 }}>
+                <a
+                  href={`https://www.google.com/maps/search/${encodeURIComponent(
+                    name.trim() + (locationId ? " " + getLocationName(locations, locationId) : "")
+                  )}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", fontWeight: 500 }}
+                >↗ Maps</a>
+                {isFood && (
+                  <a
+                    href={`https://www.yelp.com/search?find_desc=${encodeURIComponent(name.trim())}&find_loc=${encodeURIComponent(
+                      locationId ? getLocationName(locations, locationId).replace(" → ", ", ") : ""
+                    )}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 11, color: "#d32323", textDecoration: "none", fontWeight: 500 }}
+                  >↗ Yelp</a>
+                )}
+              </span>
+            )}>Name</FieldLabel>
             <input autoFocus value={name} onChange={e => setName(e.target.value)}
               onKeyDown={e => { if (e.key === "Escape") onCancel(); }}
               placeholder={isFood ? "Restaurant name" : "Activity name"}

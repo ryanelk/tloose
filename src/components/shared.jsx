@@ -8,7 +8,7 @@ export function PillSelect({ value, options, onChange, size = "sm" }) {
   return (
     <div style={{ display: "inline-flex", gap: 2, background: "var(--pill-track)", borderRadius: 6, padding: 2 }}>
       {options.map(o => (
-        <button key={o.value} onClick={() => onChange(o.value)} style={{
+        <button type="button" key={o.value} onClick={() => onChange(o.value)} style={{
           padding: pad, fontSize: fs, fontWeight: 600, fontFamily: "inherit",
           border: "none", borderRadius: 5, cursor: "pointer", transition: "all 0.15s",
           background: value === o.value ? "var(--pill-active-bg)" : "transparent",
@@ -55,13 +55,19 @@ export function LocationSelect({ value, locations, onChange, style }) {
 }
 
 export function PriceSlider({ value, onChange }) {
-  const level = value || 1;
+  const level = value ?? 1;
   return <div style={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+    <button type="button" onClick={() => onChange(0)} style={{
+      background: "none", border: "none", cursor: "pointer", padding: "2px 2px",
+      fontSize: 13, color: level === 0 ? "var(--fg)" : "var(--border)",
+      fontWeight: level === 0 ? 700 : 400, transition: "color 0.1s", fontFamily: "inherit",
+      textDecoration: "line-through",
+    }}>$</button>
     {[1,2,3,4].map(n => (
-      <button key={n} onClick={() => onChange(n)} style={{
+      <button type="button" key={n} onClick={() => onChange(n)} style={{
         background: "none", border: "none", cursor: "pointer", padding: "2px 1px",
-        fontSize: 13, color: n <= level ? "var(--fg)" : "var(--border)",
-        fontWeight: n <= level ? 700 : 400, transition: "color 0.1s", fontFamily: "inherit",
+        fontSize: 13, color: level > 0 && n <= level ? "var(--fg)" : "var(--border)",
+        fontWeight: level > 0 && n <= level ? 700 : 400, transition: "color 0.1s", fontFamily: "inherit",
       }}>$</button>
     ))}
   </div>;
@@ -88,7 +94,7 @@ export function TagToggle({ tags, onChange, type = "food" }) {
   return <div style={{ display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
     {defs.map(({ key, emoji, label, activeBg, activeColor }) => {
       const on = t.includes(key);
-      return <button key={key} onClick={() => toggle(key)} style={{
+      return <button type="button" key={key} onClick={() => toggle(key)} style={{
         background: on ? activeBg : "var(--pill-track)",
         color: on ? activeColor : "var(--muted)",
         border: on ? `1.5px solid ${activeColor}` : "1.5px solid transparent",
@@ -200,7 +206,7 @@ export function ItemSearchSelect({ value, food, activities, stays, onChange, onI
           }} onMouseEnter={e => e.currentTarget.style.background = "var(--pill-track)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
             <span>{ITEM_ICON[item._type] || "📍"}</span>
             <span style={{ fontWeight: 500 }}>{item.name}</span>
-            {item._type !== "stay" && <span style={{ color: "var(--muted)", fontSize: 11 }}>{"$".repeat(item.priceLevel || 1)}</span>}
+            {item._type !== "stay" && <span style={{ color: "var(--muted)", fontSize: 11, textDecoration: item.priceLevel === 0 ? "line-through" : "none" }}>{item.priceLevel === 0 ? "$" : "$".repeat(item.priceLevel || 1)}</span>}
           </button>
         ))}
       </div>
