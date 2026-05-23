@@ -1,8 +1,20 @@
+import { useRef, useEffect } from "react";
 import { Editable, DeleteBtn, AddBtn, Badge, PillSelect, LocationSelect, PriceSlider, TagToggle } from "./shared.jsx";
 import { getLocationName, uid } from "../utils/helpers.js";
 import { PRIORITY_OPTIONS, selectStyle } from "../data/defaults.js";
 
-export default function ListTab({ items, setItems, type, locations }) {
+export default function ListTab({ items, setItems, type, locations, highlightedItemId, setHighlightedItemId }) {
+  const highlightRef = useRef(null);
+
+  useEffect(() => {
+    if (highlightedItemId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+      setTimeout(() => setHighlightedItemId(null), 2000);
+    }
+  }, [highlightedItemId, setHighlightedItemId]);
   const isFood = type === "Restaurant";
   const grouped = {};
   items.forEach(item => { const key = item.locationId || "_unassigned"; if (!grouped[key]) grouped[key] = []; grouped[key].push(item); });
@@ -28,7 +40,7 @@ export default function ListTab({ items, setItems, type, locations }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {grouped[locKey].map(item => (
-            <div key={item.id} style={{ paddingBottom: 20, borderBottom: "1px solid var(--border-subtle)" }}>
+            <div key={item.id} ref={item.id === highlightedItemId ? highlightRef : null} style={{ paddingBottom: 20, borderBottom: "1px solid var(--border-subtle)", background: item.id === highlightedItemId ? "var(--accent-dim)" : "transparent", transition: "background 0.5s", padding: item.id === highlightedItemId ? "12px" : "0", borderRadius: item.id === highlightedItemId ? "8px" : "0" }}>
               {/* Row 1: Name, Reserved badge, Tags, Price, Priority, Delete */}
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
                 <Editable value={item.name} onChange={v => updateItem(item.id, "name", v)} placeholder={`${type} name`} style={{ fontWeight: 700, fontSize: 16, flex: 1, minWidth: 150 }} />

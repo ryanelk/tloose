@@ -3,6 +3,7 @@ import OverviewTab from "./components/Overview.jsx";
 import TimelineTab from "./components/Timeline.jsx";
 import ListTab from "./components/ListTab.jsx";
 import BudgetTab from "./components/Budget.jsx";
+import MapTab from "./components/MapTab.jsx";
 import { ThemeSlider, SettingsMenu } from "./components/Settings.jsx";
 import { STORAGE_KEY, FONTS, TIMEZONES, DEFAULT_DATA, selectStyle } from "./data/defaults.js";
 import { syncTimelineDays } from "./utils/helpers.js";
@@ -12,6 +13,7 @@ const TABS = [
   { id: "timeline", label: "Timeline" },
   { id: "food", label: "Food" },
   { id: "activities", label: "Activities" },
+  { id: "map", label: "Map" },
   { id: "budget", label: "Budget" },
 ];
 
@@ -48,6 +50,7 @@ export async function saveData(data) {
 export default function TripPlanner() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("overview");
+  const [highlightedItemId, setHighlightedItemId] = useState(null);
   const [loading, setLoading] = useState(true);
   const saveTimer = useRef(null);
 
@@ -105,6 +108,17 @@ export default function TripPlanner() {
         };
         s.food = s.food.map(migrateItem);
         s.activities = s.activities.map(migrateItem);
+        // Migrate geocoding fields
+        const migrateGeoFields = (item) => ({
+          ...item,
+          lat: item.lat ?? null,
+          lng: item.lng ?? null,
+          geocodedName: item.geocodedName ?? "",
+          geocodeError: item.geocodeError ?? false,
+          geocodeTimestamp: item.geocodeTimestamp ?? null,
+        });
+        s.food = s.food.map(migrateGeoFields);
+        s.activities = s.activities.map(migrateGeoFields);
         if (!s.budget) s.budget = DEFAULT_DATA.budget;
         if (s.budget.categories) {
           s.budget.categories = s.budget.categories.filter(c => c.group !== "Transportation" && c.group !== "Stays");
@@ -171,8 +185,9 @@ export default function TripPlanner() {
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "clamp(20px, 5vw, 32px) clamp(12px, 4vw, 28px) 80px" }}>
         {tab === "overview" && <OverviewTab data={data} setData={setD} tz={data.timezone} />}
         {tab === "timeline" && <TimelineTab data={data} setData={setD} />}
-        {tab === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} />}
-        {tab === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} />}
+        {tab === "food" && <ListTab items={data.food} setItems={v => setD(d => ({ ...d, food: v }))} type="Restaurant" locations={data.locations} highlightedItemId={highlightedItemId} setHighlightedItemId={setHighlightedItemId} />}
+        {tab === "activities" && <ListTab items={data.activities} setItems={v => setD(d => ({ ...d, activities: v }))} type="Activity" locations={data.locations} highlightedItemId={highlightedItemId} setHighlightedItemId={setHighlightedItemId} />}
+        {tab === "map" && <MapTab data={data} setData={setD} setTab={setTab} setHighlightedItemId={setHighlightedItemId} />}
         {tab === "budget" && <BudgetTab data={data} setData={setD} />}
       </div>
     </div>
