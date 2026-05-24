@@ -47,16 +47,22 @@ function saveCache() {
 /**
  * Geocode a single item by name
  * @param {string} name - The name to geocode (e.g., "Museo Frida Kahlo")
+ * @param {string} location - Optional location context (e.g., "Mexico City")
  * @returns {Promise<{lat: number, lng: number} | null>} - Coordinates or null if failed
  */
-export async function geocodeItem(name) {
+export async function geocodeItem(name, location = "") {
   if (!name || name.trim() === "") {
     return null;
   }
 
-  // Check cache first
+  // Build search query with location context
+  const searchQuery = location
+    ? `${name.trim()}, ${location}`
+    : name.trim();
+
+  // Check cache first (cache key includes location for context)
   const cache = loadCache();
-  const cacheKey = name.trim().toLowerCase();
+  const cacheKey = searchQuery.toLowerCase();
 
   if (cache.has(cacheKey)) {
     const cached = cache.get(cacheKey);
@@ -66,14 +72,14 @@ export async function geocodeItem(name) {
 
   // Not in cache, queue for API request
   return new Promise((resolve) => {
-    requestQueue.push({ name, resolve, retries: 0 });
+    requestQueue.push({ name: searchQuery, resolve, retries: 0 });
     processQueue();
   });
 }
 
 /**
  * Geocode multiple items with progress callback
- * @param {Array} items - Array of items with {id, name} properties
+ * @param {Array} items - Array of items with {id, name, location} properties
  * @param {Function} onProgress - Callback called with (completed, total, item)
  * @returns {Promise<Map>} - Map of item IDs to geocoding results
  */
@@ -83,7 +89,7 @@ export async function geocodeMultiple(items, onProgress) {
   const total = items.length;
 
   for (const item of items) {
-    const result = await geocodeItem(item.name);
+    const result = await geocodeItem(item.name, item.location);
     results.set(item.id, result);
     completed++;
 
@@ -112,8 +118,9 @@ async function processQueue() {
       const result = await fetchGeocode(request.name);
 
       // Save result to cache (both successful and failed lookups)
+      // request.name already contains the full query with location context
       const cache = loadCache();
-      const cacheKey = request.name.trim().toLowerCase();
+      const cacheKey = request.name.toLowerCase();
       cache.set(cacheKey, result);
       geocodeCache = cache;
       saveCache();
@@ -129,7 +136,7 @@ async function processQueue() {
 
         // Cache the failure to avoid repeated attempts
         const cache = loadCache();
-        const cacheKey = request.name.trim().toLowerCase();
+        const cacheKey = request.name.toLowerCase();
         cache.set(cacheKey, null);
         geocodeCache = cache;
         saveCache();

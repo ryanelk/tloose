@@ -81,8 +81,22 @@ export default function MapTab({ data, setData, setTab, setHighlightedItemId }) 
     setGeocoding(true);
     setProgress({ completed: 0, total: items.length });
 
+    // Add location context to each item for better geocoding accuracy
+    const itemsWithLocation = items.map(item => {
+      let location = "";
+      if (item.locationId) {
+        // Convert "Mexico City → Condesa" to "Condesa, Mexico City" for better geocoding
+        const locName = getLocationName(data.locations, item.locationId);
+        location = locName.replace(" → ", ", ");
+      }
+      return {
+        ...item,
+        location
+      };
+    });
+
     const results = await geocodeMultiple(
-      items,
+      itemsWithLocation,
       (completed, total, item) => {
         setProgress({ completed, total });
       }
