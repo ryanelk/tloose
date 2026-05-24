@@ -1,15 +1,38 @@
-import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { useState, useEffect, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { geocodeMultiple } from "../utils/geocoding.js";
 import { getLocationName } from "../utils/helpers.js";
 import { Badge } from "./shared.jsx";
 import { PRIORITY_OPTIONS } from "../data/defaults.js";
 
+const MAP_POSITION_KEY = "trip-planner-map-position";
+
+// Component to handle map position persistence
+function MapPositionHandler({ onPositionChange }) {
+  const map = useMapEvents({
+    moveend: () => {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      onPositionChange({ center: [center.lat, center.lng], zoom });
+    },
+  });
+  return null;
+}
+
 export default function MapTab({ data, setData, setTab, setHighlightedItemId }) {
   const [geocoding, setGeocoding] = useState(false);
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const [leafletLoaded, setLeafletLoaded] = useState(false);
+  const [mapPosition, setMapPosition] = useState(() => {
+    try {
+      const saved = localStorage.getItem(MAP_POSITION_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const mapRef = useRef(null);
 
   // Load Leaflet CSS
   useEffect(() => {
@@ -137,9 +160,9 @@ export default function MapTab({ data, setData, setTab, setHighlightedItemId }) 
     handleGeocode(errorItems);
   };
 
-  const handleViewDetails = (item) => {
-    setTab(item.type === 'food' ? 'food' : 'activities');
-    setHighlightedItemId(item.id);
+  const handlePositionChange = (position) => {
+    setMapPosition(position);
+    localStorage.setItem(MAP_POSITION_KEY, JSON.stringify(position));
   };
 
   // Create custom marker icons
@@ -177,12 +200,16 @@ export default function MapTab({ data, setData, setTab, setHighlightedItemId }) 
   };
 
   const bounds = getBounds();
-  const center = bounds && bounds.length > 0
+  const defaultCenter = bounds && bounds.length > 0
     ? [
         bounds.reduce((sum, b) => sum + b[0], 0) / bounds.length,
         bounds.reduce((sum, b) => sum + b[1], 0) / bounds.length
       ]
     : [19.4326, -99.1332]; // Default to Mexico City
+
+  // Use saved position if available, otherwise calculate from bounds
+  const center = mapPosition?.center || defaultCenter;
+  const zoom = mapPosition?.zoom || (bounds?.length === 1 ? 13 : 11);
 
   if (!leafletLoaded) {
     return <div style={{ padding: 20, textAlign: "center", color: "var(--muted)" }}>Loading map...</div>;
@@ -255,12 +282,12 @@ export default function MapTab({ data, setData, setTab, setHighlightedItemId }) 
             </div>
           ) : (
             <MapContainer
-              bounds={bounds.length > 1 ? bounds : undefined}
               center={center}
-              zoom={bounds.length === 1 ? 13 : 11}
+              zoom={zoom}
               style={{ height: "100%", width: "100%" }}
               scrollWheelZoom={true}
             >
+              <MapPositionHandler onPositionChange={handlePositionChange} />
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -312,23 +339,58 @@ export default function MapTab({ data, setData, setTab, setHighlightedItemId }) 
                         </div>
                       )}
 
-                      <button
-                        onClick={() => handleViewDetails(item)}
-                        style={{
-                          width: "100%",
-                          padding: "6px 12px",
-                          background: "#4a6ee0",
-                          color: "#fff",
-                          border: "none",
-                          borderRadius: 4,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          marginTop: 4
-                        }}
-                      >
-                        View Details
-                      </button>
+                      {item.notes && (
+                        <div style={{ fontSize: 12, color: "#444", marginBottom: 8, padding: "8px", background: "#f9f9f9", borderRadius: 4, borderLeft: "3px solid #4a6ee0" }}>
+                          {item.notes}
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            flex: 1,
+                            padding: "6px 12px",
+                            background: "#4285F4",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 4,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textDecoration: "none",
+                            textAlign: "center",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Google Maps
+                        </a>
+                        {item.type === 'food' && (
+                          <a
+                            href={`https://www.yelp.com/search?find_desc=${encodeURIComponent(item.name)}&find_loc=${encodeURIComponent(
+                              item.locationId ? getLocationName(data.locations, item.locationId).replace(" → ", ", ") : ""
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              flex: 1,
+                              padding: "6px 12px",
+                              background: "#d32323",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 4,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              textDecoration: "none",
+                              textAlign: "center",
+                              cursor: "pointer"
+                            }}
+                          >
+                            Yelp
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </Popup>
                 </Marker>
