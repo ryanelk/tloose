@@ -33,6 +33,7 @@ export default function MapTab({ data, setData, setTab, setHighlightedItemId }) 
     }
   });
   const mapRef = useRef(null);
+  const hasAutoGeocoded = useRef(false); // Prevent duplicate auto-geocoding
 
   // Load Leaflet CSS
   useEffect(() => {
@@ -70,9 +71,11 @@ export default function MapTab({ data, setData, setTab, setHighlightedItemId }) 
   // Items that failed to geocode
   const errorItems = allItems.filter(item => item.geocodeError && item.name);
 
-  // Auto-geocode items on mount
+  // Auto-geocode items on mount (only once to prevent duplicate API calls)
   useEffect(() => {
-    if (needsGeocoding.length > 0 && !geocoding) {
+    if (needsGeocoding.length > 0 && !geocoding && !hasAutoGeocoded.current) {
+      hasAutoGeocoded.current = true;
+      console.log(`[MapTab] Auto-geocoding ${needsGeocoding.length} items`);
       handleGeocode(needsGeocoding);
     }
   }, []);

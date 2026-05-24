@@ -1,9 +1,9 @@
 // Geocoding service using Nominatim API (OpenStreetMap)
 // Rate limited to 1 request per second as per Nominatim usage policy
-// Using 3 second delay for conservative rate limiting
+// Using 1.5 second delay for safe rate limiting
 
 const NOMINATIM_API = "https://nominatim.openstreetmap.org/search";
-const REQUEST_DELAY = 3000; // 3 second delay between requests (conservative)
+const REQUEST_DELAY = 1500; // 1.5 second delay between requests
 const MAX_RETRIES = 2;
 const GEOCODE_CACHE_KEY = "trip-planner-geocode-cache";
 
@@ -66,11 +66,13 @@ export async function geocodeItem(name, location = "") {
 
   if (cache.has(cacheKey)) {
     const cached = cache.get(cacheKey);
+    console.log(`[Geocode] Cache hit: "${searchQuery}"`);
     // Return a copy to avoid mutations
     return cached ? { ...cached } : null;
   }
 
   // Not in cache, queue for API request
+  console.log(`[Geocode] Cache miss, queueing API request: "${searchQuery}"`);
   return new Promise((resolve) => {
     requestQueue.push({ name: searchQuery, resolve, retries: 0 });
     processQueue();
@@ -113,6 +115,7 @@ async function processQueue() {
 
   while (requestQueue.length > 0) {
     const request = requestQueue.shift();
+    let shouldDelay = true; // Track if we made an API call
 
     try {
       const result = await fetchGeocode(request.name);
@@ -131,6 +134,7 @@ async function processQueue() {
       if (request.retries < MAX_RETRIES) {
         request.retries++;
         requestQueue.unshift(request); // Put back at front of queue
+        shouldDelay = false; // Don't delay for retries, just retry immediately on next loop
       } else {
         console.error(`Geocoding failed for "${request.name}" after ${MAX_RETRIES} retries:`, error);
 
@@ -145,8 +149,9 @@ async function processQueue() {
       }
     }
 
-    // Wait before processing next request (rate limiting)
-    if (requestQueue.length > 0) {
+    // ALWAYS wait after making an API call to respect rate limits
+    // This ensures we never exceed 1 request per 3 seconds
+    if (shouldDelay) {
       await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
     }
   }
@@ -161,6 +166,8 @@ async function processQueue() {
  */
 async function fetchGeocode(name) {
   const url = `${NOMINATIM_API}?q=${encodeURIComponent(name)}&format=json&limit=1`;
+
+  console.log(`[Geocode] Making API request at ${new Date().toLocaleTimeString()}: "${name}"`);
 
   const response = await fetch(url, {
     headers: {
