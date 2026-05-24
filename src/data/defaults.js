@@ -49,8 +49,8 @@ export const CATEGORY_OPTIONS = [
   { value: "activity", label: "📍" }
 ];
 
-export const SOURCE_ICONS = { transport: "✈", food: "🍽", activity: "📍" };
-export const SOURCE_COLORS = { transport: "var(--accent)", food: "var(--amber-text)", activity: "var(--green-text)" };
+export const SOURCE_ICONS = { transport: "✈", food: "🍽", activity: "📍", stay: "🏨" };
+export const SOURCE_COLORS = { transport: "var(--accent)", food: "var(--amber-text)", activity: "var(--green-text)", stay: "var(--green-text)" };
 
 export const selectStyle = {
   background: "var(--pill-track)",
@@ -101,8 +101,8 @@ export const DEFAULT_DATA = {
       { id: "d2", text: "Book Mexico City hotel", date: "2025-07-20", done: true },
     ],
     stays: [
-      { id: "s1", locationId: "loc1", name: "Staying with family (Maca)", startDate: "2025-08-12", endDate: "2025-08-19", budgeted: 0, actual: 0 },
-      { id: "s2", locationId: "loc2", name: "Hotel via Hotwire", startDate: "2025-08-20", endDate: "2025-08-25", budgeted: 850, actual: 0 },
+      { id: "s1", locationId: "loc1", name: "Staying with family (Maca)", startDate: "2025-08-12", endDate: "2025-08-19", budgeted: 0, actual: 0, checkInTime: "3:00 PM", checkOutTime: "11:00 AM" },
+      { id: "s2", locationId: "loc2", name: "Hotel via Hotwire", startDate: "2025-08-20", endDate: "2025-08-25", budgeted: 850, actual: 0, checkInTime: "3:00 PM", checkOutTime: "11:00 AM" },
     ],
   },
   timeline: [
@@ -112,6 +112,14 @@ export const DEFAULT_DATA = {
     { id: "tl2", date: "2025-08-21", label: "Thu 8/21", subtitle: "South CDMX Day", locationIds: ["sub3", "loc2"], events: [
       { id: "e4", time: "1:00 PM", text: "Lunch in Coyoacán", type: "potential", category: "food" },
     ]},
+  ],
+  outfits: [
+    { id: "out1", name: "Museum Day", tags: ["casual", "outdoor"], vibe: "Comfortable walking shoes, light layer — lots of walking", notes: "" },
+    { id: "out2", name: "Rooftop Dinner", tags: ["formal", "night-out"], vibe: "Dress or nice trousers, elevated but breathable in August heat", notes: "" },
+  ],
+  stayOptions: [
+    { id: "so1", name: "Hotel Carlota", locationId: "loc2", type: "hotel", pricePerDay: 120, vibe: "Modern boutique hotel, rooftop pool, quiet street in Cuauhtémoc", notes: "hotelcarlota.mx" },
+    { id: "so2", name: "Airbnb Roma Norte Apt", locationId: "sub2", type: "airbnb", pricePerDay: 85, vibe: "2BR apartment, private patio, 5 min walk to Álvaro Obregón", notes: "" },
   ],
   food: [
     { id: "r1", name: "Esquina Común", locationId: "sub2", priceLevel: 4, tags: ["food"], vibe: "One Michelin star, need to DM on IG to reserve", priority: "must-visit", hasReservation: true, reservationDay: "2025-08-23", reservationTime: "4:00 PM", notes: "Cheaper than other starred places" },

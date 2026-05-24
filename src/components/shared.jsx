@@ -8,7 +8,7 @@ export function PillSelect({ value, options, onChange, size = "sm" }) {
   return (
     <div style={{ display: "inline-flex", gap: 2, background: "var(--pill-track)", borderRadius: 6, padding: 2 }}>
       {options.map(o => (
-        <button key={o.value} onClick={() => onChange(o.value)} style={{
+        <button type="button" key={o.value} onClick={() => onChange(o.value)} style={{
           padding: pad, fontSize: fs, fontWeight: 600, fontFamily: "inherit",
           border: "none", borderRadius: 5, cursor: "pointer", transition: "all 0.15s",
           background: value === o.value ? "var(--pill-active-bg)" : "transparent",
@@ -30,7 +30,7 @@ export function Editable({ value, onChange, placeholder, style, type = "text" })
 }
 
 export function DeleteBtn({ onClick }) {
-  return <button onClick={onClick} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: "2px 4px", fontSize: 14, lineHeight: 1, opacity: 0.3, transition: "opacity 0.1s" }} onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.3}>×</button>;
+  return <button onClick={onClick} style={{ background: "none", border: "none", color: "var(--red-text)", cursor: "pointer", padding: "2px 4px", fontSize: 14, lineHeight: 1, opacity: 0.45, transition: "opacity 0.1s" }} onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.45}>×</button>;
 }
 
 export function AddBtn({ onClick, label }) {
@@ -55,35 +55,55 @@ export function LocationSelect({ value, locations, onChange, style }) {
 }
 
 export function PriceSlider({ value, onChange }) {
-  const level = value || 1;
+  const level = value ?? 1;
   return <div style={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+    <button type="button" onClick={() => onChange(0)} style={{
+      background: "none", border: "none", cursor: "pointer", padding: "2px 2px",
+      fontSize: 13, color: level === 0 ? "var(--fg)" : "var(--border)",
+      fontWeight: level === 0 ? 700 : 400, transition: "color 0.1s", fontFamily: "inherit",
+      textDecoration: "line-through",
+    }}>$</button>
     {[1,2,3,4].map(n => (
-      <button key={n} onClick={() => onChange(n)} style={{
+      <button type="button" key={n} onClick={() => onChange(n)} style={{
         background: "none", border: "none", cursor: "pointer", padding: "2px 1px",
-        fontSize: 13, color: n <= level ? "var(--fg)" : "var(--border)",
-        fontWeight: n <= level ? 700 : 400, transition: "color 0.1s", fontFamily: "inherit",
+        fontSize: 13, color: level > 0 && n <= level ? "var(--fg)" : "var(--border)",
+        fontWeight: level > 0 && n <= level ? 700 : 400, transition: "color 0.1s", fontFamily: "inherit",
       }}>$</button>
     ))}
   </div>;
 }
 
-export function TagToggle({ tags, onChange }) {
+const FOOD_TAGS = [
+  { key: "food",         emoji: "🍽", label: "Food",       activeBg: "var(--amber-bg)", activeColor: "var(--amber-text)" },
+  { key: "drinks",       emoji: "🍹", label: "Drinks",     activeBg: "var(--green-bg)", activeColor: "var(--green-text)" },
+  { key: "bib-gourmand", emoji: "😋", label: "Bib",        activeBg: "var(--red-bg)",   activeColor: "var(--red-text)"   },
+  { key: "michelin",     emoji: "⭐", label: "Star",       activeBg: "var(--amber-bg)", activeColor: "var(--amber-text)" },
+];
+
+const ACTIVITY_TAGS = [
+  { key: "shop",       emoji: "🛍",  label: "Shop",       activeBg: "var(--accent-dim)",  activeColor: "var(--accent)"      },
+  { key: "attraction", emoji: "🏛",  label: "Attraction", activeBg: "var(--amber-bg)",    activeColor: "var(--amber-text)"  },
+  { key: "nature",     emoji: "🌿",  label: "Nature",     activeBg: "var(--green-bg)",    activeColor: "var(--green-text)"  },
+  { key: "monument",   emoji: "🗿",  label: "Monument",   activeBg: "var(--slate-bg)",    activeColor: "var(--slate-text)"  },
+];
+
+export function TagToggle({ tags, onChange, type = "food" }) {
+  const defs = type === "activity" ? ACTIVITY_TAGS : FOOD_TAGS;
   const t = tags || [];
-  const toggle = (tag) => {
-    if (t.includes(tag)) onChange(t.filter(x => x !== tag));
-    else onChange([...t, tag]);
-  };
-  return <div style={{ display: "inline-flex", gap: 3 }}>
-    <button onClick={() => toggle("food")} style={{
-      background: t.includes("food") ? "var(--amber-bg)" : "var(--pill-track)",
-      color: t.includes("food") ? "var(--amber-text)" : "var(--muted)",
-      border: "none", borderRadius: 10, padding: "2px 6px", fontSize: 12, cursor: "pointer", transition: "all 0.1s",
-    }} title="Food">🍽</button>
-    <button onClick={() => toggle("drinks")} style={{
-      background: t.includes("drinks") ? "var(--green-bg)" : "var(--pill-track)",
-      color: t.includes("drinks") ? "var(--green-text)" : "var(--muted)",
-      border: "none", borderRadius: 10, padding: "2px 6px", fontSize: 12, cursor: "pointer", transition: "all 0.1s",
-    }} title="Drinks">🍹</button>
+  const toggle = (key) => t.includes(key) ? onChange(t.filter(x => x !== key)) : onChange([...t, key]);
+  return <div style={{ display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
+    {defs.map(({ key, emoji, label, activeBg, activeColor }) => {
+      const on = t.includes(key);
+      return <button type="button" key={key} onClick={() => toggle(key)} style={{
+        background: on ? activeBg : "var(--pill-track)",
+        color: on ? activeColor : "var(--muted)",
+        border: on ? `1.5px solid ${activeColor}` : "1.5px solid transparent",
+        borderRadius: 10, padding: "2px 7px", fontSize: 11, cursor: "pointer",
+        transition: "all 0.1s", fontFamily: "inherit",
+        display: "inline-flex", alignItems: "center", gap: 3,
+        fontWeight: on ? 600 : 400,
+      }}>{emoji} {label}</button>;
+    })}
   </div>;
 }
 
@@ -106,7 +126,32 @@ export function MultiLocationSelect({ value, locations, onChange }) {
   </div>;
 }
 
-export function ItemSearchSelect({ value, food, activities, onChange }) {
+export function OutfitMultiSelect({ value, outfits, onChange }) {
+  const selected = value || [];
+  const add = (id) => { if (id && !selected.includes(id)) onChange([...selected, id]); };
+  const remove = (id) => onChange(selected.filter(i => i !== id));
+  const available = (outfits || []).filter(o => !selected.includes(o.id));
+  return <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+    {selected.map(id => {
+      const outfit = (outfits || []).find(o => o.id === id);
+      if (!outfit) return null;
+      return (
+        <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 2, background: "var(--accent-dim)", border: "1px solid var(--accent)", borderRadius: 10, padding: "1px 4px 1px 8px", fontSize: 11, color: "var(--accent)" }}>
+          👗 {outfit.name}
+          <button onClick={() => remove(id)} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, padding: "0 2px", lineHeight: 1, opacity: 0.7 }}>×</button>
+        </span>
+      );
+    })}
+    <select value="" onChange={e => add(e.target.value)} style={{ ...selectStyle, fontSize: 11, width: selected.length > 0 ? 30 : 130, padding: "2px 4px", opacity: selected.length > 0 ? 0.5 : 1 }}>
+      <option value="">{selected.length > 0 ? "+" : "— Outfits —"}</option>
+      {available.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+    </select>
+  </div>;
+}
+
+const ITEM_ICON = { food: "🍽", activity: "📍", stay: "🏨" };
+
+export function ItemSearchSelect({ value, food, activities, stays, onChange, onInspect }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -119,21 +164,30 @@ export function ItemSearchSelect({ value, food, activities, onChange }) {
   const allItems = [
     ...(food || []).map(i => ({ ...i, _type: "food" })),
     ...(activities || []).map(i => ({ ...i, _type: "activity" })),
+    ...(stays || []).map(i => ({ ...i, _type: "stay" })),
   ];
   const linked = value ? allItems.find(i => i.id === value) : null;
   const filtered = query.length > 0 ? allItems.filter(i => i.name.toLowerCase().includes(query.toLowerCase())) : allItems;
 
   if (linked) {
     return <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <span style={{ fontSize: 12 }}>{linked._type === "food" ? "🍽" : "📍"}</span>
-      <span style={{ fontSize: 13, fontWeight: 500 }}>{linked.name}</span>
+      <span style={{ fontSize: 12 }}>{ITEM_ICON[linked._type] || "📍"}</span>
+      {onInspect ? (
+        <button onClick={() => onInspect(linked.id)} style={{
+          background: "none", border: "none", padding: 0, cursor: "pointer",
+          fontSize: 13, fontWeight: 500, color: "var(--fg)", fontFamily: "inherit",
+          textAlign: "left",
+        }}>{linked.name}</button>
+      ) : (
+        <span style={{ fontSize: 13, fontWeight: 500 }}>{linked.name}</span>
+      )}
       <button onClick={() => onChange("")} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11, padding: "0 4px" }}>×</button>
     </div>;
   }
 
   return <div ref={ref} style={{ position: "relative", flex: 1 }}>
     <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-      placeholder="Search food / activity…" style={{
+      placeholder="Search food / activity / stay…" style={{
         background: "transparent", border: "none", borderBottom: "1.5px solid transparent",
         padding: "4px 0", color: "var(--fg)", fontSize: 12, fontFamily: "inherit", width: "100%",
         boxSizing: "border-box", outline: "none",
@@ -149,10 +203,10 @@ export function ItemSearchSelect({ value, food, activities, onChange }) {
             display: "flex", gap: 6, alignItems: "center", width: "100%", padding: "6px 10px",
             background: "transparent", border: "none", cursor: "pointer", textAlign: "left",
             fontSize: 12, color: "var(--fg)", fontFamily: "inherit",
-          }} onMouseEnter={e => e.target.style.background = "var(--pill-track)"} onMouseLeave={e => e.target.style.background = "transparent"}>
-            <span>{item._type === "food" ? "🍽" : "📍"}</span>
+          }} onMouseEnter={e => e.currentTarget.style.background = "var(--pill-track)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+            <span>{ITEM_ICON[item._type] || "📍"}</span>
             <span style={{ fontWeight: 500 }}>{item.name}</span>
-            <span style={{ color: "var(--muted)", fontSize: 11 }}>{"$".repeat(item.priceLevel || 1)}</span>
+            {item._type !== "stay" && <span style={{ color: "var(--muted)", fontSize: 11, textDecoration: item.priceLevel === 0 ? "line-through" : "none" }}>{item.priceLevel === 0 ? "$" : "$".repeat(item.priceLevel || 1)}</span>}
           </button>
         ))}
       </div>
